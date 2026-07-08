@@ -5,8 +5,9 @@ ENV BUN_CONFIG_REGISTRY=https://registry.npmmirror.com
 COPY web/package.json web/bun.lock ./
 COPY web/default/package.json ./default/package.json
 COPY web/classic/package.json ./classic/package.json
-
-RUN bun install
+# 使用 npm 替代 bun
+RUN npm config set registry https://registry.npmmirror.com && \
+    npm install --fetch-retries=5 --fetch-retry-mintimeout=20000 --fetch-retry-maxtimeout=120000
 COPY ./web/default ./default
 COPY ./VERSION /build/VERSION
 RUN cd default && DISABLE_ESLINT_PLUGIN='true' VITE_REACT_APP_VERSION=$(cat /build/VERSION) bun run build
@@ -18,8 +19,9 @@ ENV BUN_CONFIG_REGISTRY=https://registry.npmmirror.com
 COPY web/package.json web/bun.lock ./
 COPY web/default/package.json ./default/package.json
 COPY web/classic/package.json ./classic/package.json
-
-RUN bun install
+# 使用 npm 替代 bun
+RUN npm config set registry https://registry.npmmirror.com && \
+    npm install --fetch-retries=5 --fetch-retry-mintimeout=20000 --fetch-retry-maxtimeout=120000
 COPY ./web/classic ./classic
 COPY ./VERSION /build/VERSION
 RUN cd classic && VITE_REACT_APP_VERSION=$(cat /build/VERSION) bun run build
