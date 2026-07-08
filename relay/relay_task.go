@@ -223,7 +223,11 @@ func RelayTaskSubmit(c *gin.Context, info *relaycommon.RelayInfo) (*TaskSubmitRe
 	}
 	if resp != nil && resp.StatusCode != http.StatusOK {
 		responseBody, _ := io.ReadAll(resp.Body)
-		return nil, service.TaskErrorWrapper(fmt.Errorf("%s", string(responseBody)), "fail_to_fetch_task", resp.StatusCode)
+		bodyStr := strings.TrimSpace(string(responseBody))
+		if bodyStr == "" {
+			bodyStr = "(empty response body)"
+		}
+		return nil, service.TaskErrorWrapper(fmt.Errorf("upstream returned status %d: %s", resp.StatusCode, bodyStr), "fail_to_fetch_task", resp.StatusCode)
 	}
 
 	// 10. 返回 OtherRatios 给下游（header 必须在 DoResponse 写 body 之前设置）

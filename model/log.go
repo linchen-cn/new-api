@@ -381,15 +381,17 @@ func RecordConsumeLog(c *gin.Context, userId int, params RecordConsumeLogParams)
 }
 
 type RecordTaskBillingLogParams struct {
-	UserId    int
-	LogType   int
-	Content   string
-	ChannelId int
-	ModelName string
-	Quota     int
-	TokenId   int
-	Group     string
-	Other     map[string]interface{}
+	UserId            int
+	LogType           int
+	Content           string
+	ChannelId         int
+	ModelName         string
+	Quota             int
+	TokenId           int
+	Group             string
+	Other             map[string]interface{}
+	PromptTokens      int
+	CompletionTokens  int
 }
 
 func RecordTaskBillingLog(params RecordTaskBillingLogParams) {
@@ -405,18 +407,20 @@ func RecordTaskBillingLog(params RecordTaskBillingLogParams) {
 	}
 	createdAt := common.GetTimestamp()
 	log := &Log{
-		UserId:    params.UserId,
-		Username:  username,
-		CreatedAt: createdAt,
-		Type:      params.LogType,
-		Content:   params.Content,
-		TokenName: tokenName,
-		ModelName: params.ModelName,
-		Quota:     params.Quota,
-		ChannelId: params.ChannelId,
-		TokenId:   params.TokenId,
-		Group:     params.Group,
-		Other:     common.MapToJsonStr(params.Other),
+		UserId:           params.UserId,
+		Username:         username,
+		CreatedAt:        createdAt,
+		Type:             params.LogType,
+		Content:          params.Content,
+		TokenName:        tokenName,
+		ModelName:        params.ModelName,
+		Quota:            params.Quota,
+		PromptTokens:     params.PromptTokens,
+		CompletionTokens: params.CompletionTokens,
+		ChannelId:        params.ChannelId,
+		TokenId:          params.TokenId,
+		Group:            params.Group,
+		Other:            common.MapToJsonStr(params.Other),
 	}
 	err := createLog(log)
 	if err != nil {

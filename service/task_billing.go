@@ -184,7 +184,7 @@ func RefundTaskQuota(ctx context.Context, task *model.Task, reason string) {
 // RecalculateTaskQuota 通用的异步差额结算。
 // actualQuota 是任务完成后的实际应扣额度，与预扣额度 (task.Quota) 做差额结算。
 // reason 用于日志记录（例如 "token重算" 或 "adaptor调整"）。
-func RecalculateTaskQuota(ctx context.Context, task *model.Task, actualQuota int, reason string) {
+func RecalculateTaskQuota(ctx context.Context, task *model.Task, actualQuota int, reason string, promptTokens int, completionTokens int) {
 	if actualQuota <= 0 {
 		return
 	}
@@ -232,15 +232,17 @@ func RecalculateTaskQuota(ctx context.Context, task *model.Task, actualQuota int
 	other["pre_consumed_quota"] = preConsumedQuota
 	other["actual_quota"] = actualQuota
 	model.RecordTaskBillingLog(model.RecordTaskBillingLogParams{
-		UserId:    task.UserId,
-		LogType:   logType,
-		Content:   reason,
-		ChannelId: task.ChannelId,
-		ModelName: taskModelName(task),
-		Quota:     logQuota,
-		TokenId:   task.PrivateData.TokenId,
-		Group:     task.Group,
-		Other:     other,
+		UserId:           task.UserId,
+		LogType:          logType,
+		Content:          reason,
+		ChannelId:        task.ChannelId,
+		ModelName:        taskModelName(task),
+		Quota:            logQuota,
+		TokenId:          task.PrivateData.TokenId,
+		Group:            task.Group,
+		Other:            other,
+		PromptTokens:     promptTokens,
+		CompletionTokens: completionTokens,
 	})
 }
 
@@ -297,5 +299,5 @@ func RecalculateTaskQuotaByTokens(ctx context.Context, task *model.Task, totalTo
 	actualQuota := int(float64(totalTokens) * modelRatio * finalGroupRatio * otherMultiplier)
 
 	reason := fmt.Sprintf("token重算：tokens=%d, modelRatio=%.2f, groupRatio=%.2f, otherMultiplier=%.4f", totalTokens, modelRatio, finalGroupRatio, otherMultiplier)
-	RecalculateTaskQuota(ctx, task, actualQuota, reason)
+	RecalculateTaskQuota(ctx, task, actualQuota, reason, 0, totalTokens)
 }

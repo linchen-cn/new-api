@@ -298,8 +298,29 @@ func extractImageURLsFromMetadata(metadata map[string]interface{}) []string {
 	return images
 }
 
+// isVolcEngine 判断 Base URL 是否指向火山方舟官方 API。
+func isVolcEngine(baseURL string) bool {
+	return strings.Contains(baseURL, "volces.com") || strings.Contains(baseURL, "volcengine.com")
+}
+
+// submitPath 返回提交任务的 API 路径。
+func submitPath(baseURL string) string {
+	if isVolcEngine(baseURL) {
+		return "/api/v3/contents/generations/tasks"
+	}
+	return "/v1/video/generations"
+}
+
+// fetchPath 返回查询任务的 API 路径。
+func fetchPath(baseURL, taskID string) string {
+	if isVolcEngine(baseURL) {
+		return fmt.Sprintf("%s/api/v3/contents/generations/tasks/%s", baseURL, taskID)
+	}
+	return fmt.Sprintf("%s/v1/video/generations/%s", baseURL, taskID)
+}
+
 func (a *TaskAdaptor) BuildRequestURL(_ *relaycommon.RelayInfo) (string, error) {
-	return fmt.Sprintf("%s/v1/video/generations", a.baseURL), nil
+	return fmt.Sprintf("%s%s", a.baseURL, submitPath(a.baseURL)), nil
 }
 
 func (a *TaskAdaptor) BuildRequestHeader(_ *gin.Context, req *http.Request, _ *relaycommon.RelayInfo) error {
@@ -336,6 +357,7 @@ func (a *TaskAdaptor) BuildRequestBody(c *gin.Context, info *relaycommon.RelayIn
 	if err != nil {
 		return nil, errors.Wrap(err, "marshal_request_body_failed")
 	}
+	common.SysLog(fmt.Sprintf("[seedance] upstream request body: %s", string(data)))
 	return bytes.NewReader(data), nil
 }
 
@@ -388,7 +410,7 @@ func (a *TaskAdaptor) FetchTask(baseUrl, key string, body map[string]any, proxy 
 		return nil, fmt.Errorf("invalid task_id")
 	}
 
-	uri := fmt.Sprintf("%s/v1/video/generations/%s", baseUrl, taskID)
+	uri := fetchPath(baseUrl, taskID)
 
 	req, err := http.NewRequest(http.MethodGet, uri, nil)
 	if err != nil {
@@ -415,49 +437,45 @@ func (a *TaskAdaptor) GetChannelName() string {
 }
 
 func (a *TaskAdaptor) ParseTaskResult(respBody []byte) (*relaycommon.TaskInfo, error) {
-	var resp fetchResponse
-	if err := common.Unmarshal(respBody, &resp); err != nil {
-		return nil, errors.Wrap(err, "unmarshal task result failed")
+	// 火山方舟原生 API 返回扁平结构：{"id":"...","status":"succeeded","content":{"video_url":"..."},...}
+	// new-api 中转站返回嵌套结构：{"code":"success","data":{"status":"SUCCESS","data":{...}}}
+	var inner taskResult
+
+	var nested fetchResponse
+	if err := common.Unmarshal(respBody, &nested); err == nil && nested.Data.Data.ID != "" {
+		inner = nested.Data.Data
+	} else if err2 := common.Unmarshal(respBody, &inner); err2 != nil {
+		return nil, errors.Wrap(err2, "unmarshal task result failed")
 	}
 
-	taskResult := relaycommon.TaskInfo{Code: 0}
+	result := relaycommon.TaskInfo{Code: 0}
 
-	// 优先使用内层任务数据的状态，回退到外层
-	inner := resp.Data.Data
-	status := inner.Status
-	if status == "" {
-		status = resp.Data.Status
-	}
-
-	switch strings.ToLower(status) {
+	switch strings.ToLower(inner.Status) {
 	case "queued", "pending":
-		taskResult.Status = model.TaskStatusQueued
-		taskResult.Progress = "10%"
+		result.Status = model.TaskStatusQueued
+		result.Progress = "10%"
 	case "processing", "running":
-		taskResult.Status = model.TaskStatusInProgress
-		taskResult.Progress = "50%"
+		result.Status = model.TaskStatusInProgress
+		result.Progress = "50%"
 	case "succeeded", "completed", "success":
-		taskResult.Status = model.TaskStatusSuccess
-		taskResult.Progress = "100%"
-		taskResult.Url = inner.Content.VideoURL
-		if taskResult.Url == "" {
-			taskResult.Url = resp.Data.ResultURL
-		}
-		taskResult.CompletionTokens = inner.Usage.CompletionTokens
-		taskResult.TotalTokens = inner.Usage.TotalTokens
+		result.Status = model.TaskStatusSuccess
+		result.Progress = "100%"
+		result.Url = inner.Content.VideoURL
+		result.CompletionTokens = inner.Usage.CompletionTokens
+		result.TotalTokens = inner.Usage.TotalTokens
 	case "failed":
-		taskResult.Status = model.TaskStatusFailure
-		taskResult.Progress = "100%"
-		taskResult.Reason = inner.Error.Message
-		if taskResult.Reason == "" {
-			taskResult.Reason = inner.Error.Code
+		result.Status = model.TaskStatusFailure
+		result.Progress = "100%"
+		result.Reason = inner.Error.Message
+		if result.Reason == "" {
+			result.Reason = inner.Error.Code
 		}
 	default:
-		taskResult.Status = model.TaskStatusInProgress
-		taskResult.Progress = "30%"
+		result.Status = model.TaskStatusInProgress
+		result.Progress = "30%"
 	}
 
-	return &taskResult, nil
+	return &result, nil
 }
 
 // AdjustBillingOnComplete 返回 0，让框架走 token 重算路径：
@@ -466,12 +484,14 @@ func (a *TaskAdaptor) ParseTaskResult(respBody []byte) (*relaycommon.TaskInfo, e
 // 仅在 ModelRatio（非 ModelPrice）模式下生效，因为 ModelPrice 模式 PerCallBilling=true 会跳过此步。
 
 func (a *TaskAdaptor) ConvertToOpenAIVideo(originTask *model.Task) ([]byte, error) {
-	var resp fetchResponse
-	if err := common.Unmarshal(originTask.Data, &resp); err != nil {
-		return nil, errors.Wrap(err, "unmarshal seedance task data failed")
+	// 兼容火山方舟原生格式和 new-api 中转格式
+	var inner taskResult
+	var nested fetchResponse
+	if err := common.Unmarshal(originTask.Data, &nested); err == nil && nested.Data.Data.ID != "" {
+		inner = nested.Data.Data
+	} else if err2 := common.Unmarshal(originTask.Data, &inner); err2 != nil {
+		return nil, errors.Wrap(err2, "unmarshal seedance task data failed")
 	}
-
-	inner := resp.Data.Data
 
 	openAIVideo := dto.NewOpenAIVideo()
 	openAIVideo.ID = originTask.TaskID
