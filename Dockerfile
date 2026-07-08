@@ -4,6 +4,8 @@ WORKDIR /build/web
 COPY web/package.json web/bun.lock ./
 COPY web/default/package.json ./default/package.json
 COPY web/classic/package.json ./classic/package.json
+# 使用腾讯云镜像
+RUN bun config set registry https://mirrors.cloud.tencent.com/npm/
 RUN bun install --frozen-lockfile
 COPY ./web/default ./default
 COPY ./VERSION /build/VERSION
@@ -15,6 +17,8 @@ WORKDIR /build/web
 COPY web/package.json web/bun.lock ./
 COPY web/default/package.json ./default/package.json
 COPY web/classic/package.json ./classic/package.json
+# 使用腾讯云镜像
+RUN bun config set registry https://mirrors.cloud.tencent.com/npm/
 RUN bun install --filter ./classic --frozen-lockfile
 COPY ./web/classic ./classic
 COPY ./VERSION /build/VERSION
