@@ -1,4 +1,4 @@
-FROM registry.cn-hangzhou.aliyuncs.com/free2walk/bun:1 AS builder
+FROM node:20-alpine AS builder
 
 WORKDIR /build/web
 ENV BUN_CONFIG_REGISTRY=https://registry.npmmirror.com
@@ -12,7 +12,7 @@ COPY ./web/default ./default
 COPY ./VERSION /build/VERSION
 RUN cd default && DISABLE_ESLINT_PLUGIN='true' VITE_REACT_APP_VERSION=$(cat /build/VERSION) bun run build
 
-FROM registry.cn-hangzhou.aliyuncs.com/free2walk/bun:1 AS builder-classic
+FROM node:20-alpine AS builder-classic
 
 WORKDIR /build/web
 ENV BUN_CONFIG_REGISTRY=https://registry.npmmirror.com
