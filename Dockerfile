@@ -1,11 +1,11 @@
 FROM registry.cn-hangzhou.aliyuncs.com/free2walk/bun:1 AS builder
 
 WORKDIR /build/web
+ENV BUN_CONFIG_REGISTRY=https://mirrors.cloud.tencent.com/npm/
 COPY web/package.json web/bun.lock ./
 COPY web/default/package.json ./default/package.json
 COPY web/classic/package.json ./classic/package.json
-# 使用腾讯云镜像
-RUN bun config set registry https://mirrors.cloud.tencent.com/npm/
+
 RUN bun install --frozen-lockfile
 COPY ./web/default ./default
 COPY ./VERSION /build/VERSION
@@ -14,11 +14,11 @@ RUN cd default && DISABLE_ESLINT_PLUGIN='true' VITE_REACT_APP_VERSION=$(cat /bui
 FROM registry.cn-hangzhou.aliyuncs.com/free2walk/bun:1 AS builder-classic
 
 WORKDIR /build/web
+ENV BUN_CONFIG_REGISTRY=https://mirrors.cloud.tencent.com/npm/
 COPY web/package.json web/bun.lock ./
 COPY web/default/package.json ./default/package.json
 COPY web/classic/package.json ./classic/package.json
-# 使用腾讯云镜像
-RUN bun config set registry https://mirrors.cloud.tencent.com/npm/
+
 RUN bun install --filter ./classic --frozen-lockfile
 COPY ./web/classic ./classic
 COPY ./VERSION /build/VERSION
