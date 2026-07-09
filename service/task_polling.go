@@ -379,6 +379,7 @@ func updateVideoTasks(ctx context.Context, platform constant.TaskPlatform, chann
 	}
 	cacheGetChannel, err := model.CacheGetChannel(channelId)
 	if err != nil {
+		common.SysLog(fmt.Sprintf("[polling] Channel #%d CacheGetChannel failed: %v", channelId, err))
 		// Collect DB primary key IDs for bulk update (taskIds are upstream IDs, not task_id column values)
 		var failedIDs []int64
 		for _, upstreamID := range taskIds {
@@ -398,8 +399,10 @@ func updateVideoTasks(ctx context.Context, platform constant.TaskPlatform, chann
 	}
 	adaptor := GetTaskAdaptorFunc(platform)
 	if adaptor == nil {
-		return fmt.Errorf("video adaptor not found")
+		common.SysLog(fmt.Sprintf("[polling] Channel #%d platform=%s adaptor not found", channelId, platform))
+		return fmt.Errorf("video adaptor not found for platform %s", platform)
 	}
+	common.SysLog(fmt.Sprintf("[polling] Channel #%d platform=%s adaptor ready, processing %d tasks", channelId, platform, len(taskIds)))
 	info := &relaycommon.RelayInfo{}
 	info.ChannelMeta = &relaycommon.ChannelMeta{
 		ChannelBaseUrl: cacheGetChannel.GetBaseURL(),
@@ -411,6 +414,7 @@ func updateVideoTasks(ctx context.Context, platform constant.TaskPlatform, chann
 		if ctx.Err() != nil {
 			return ctx.Err()
 		}
+		common.SysLog(fmt.Sprintf("[polling] processing task: %s (channel #%d, platform=%s)", taskId, channelId, platform))
 		if err := updateVideoSingleTask(ctx, adaptor, cacheGetChannel, taskId, taskM); err != nil {
 			logger.LogError(ctx, fmt.Sprintf("Failed to update video task %s: %s", taskId, err.Error()))
 		}
@@ -426,6 +430,24 @@ func updateVideoTasks(ctx context.Context, platform constant.TaskPlatform, chann
 		}
 	}
 	return nil
+}
+
+// normalizeTaskStatus 将各种上游状态（可能是大写SUCCESS/FAILED等）归一化为内部使用的小写状态
+func normalizeTaskStatus(status string) string {
+	switch strings.ToLower(status) {
+	case "success", "succeeded", "completed":
+		return model.TaskStatusSuccess
+	case "fail", "failed", "failure", "error":
+		return model.TaskStatusFailure
+	case "running", "processing", "in_progress":
+		return model.TaskStatusInProgress
+	case "queued", "pending":
+		return model.TaskStatusQueued
+	case "submitted":
+		return model.TaskStatusSubmitted
+	default:
+		return status
+	}
 }
 
 func updateVideoSingleTask(ctx context.Context, adaptor TaskPollingAdaptor, ch *model.Channel, taskId string, taskM map[string]*model.Task) error {
@@ -449,11 +471,15 @@ func updateVideoSingleTask(ctx context.Context, adaptor TaskPollingAdaptor, ch *
 	if privateData.Key != "" {
 		key = privateData.Key
 	}
+	upstreamTaskID := task.GetUpstreamTaskID()
+	common.SysLog(fmt.Sprintf("[polling] fetching task: publicTaskID=%s, upstreamTaskID=%s, channel=#%d, channelType=%d, baseURL=%s",
+		task.TaskID, upstreamTaskID, ch.Id, ch.Type, baseURL))
 	resp, err := adaptor.FetchTask(baseURL, key, map[string]any{
-		"task_id": task.GetUpstreamTaskID(),
+		"task_id": upstreamTaskID,
 		"action":  task.Action,
 	}, proxy)
 	if err != nil {
+		common.SysLog(fmt.Sprintf("[polling] fetch task failed: publicTaskID=%s, upstreamTaskID=%s, error=%v", task.TaskID, upstreamTaskID, err))
 		return fmt.Errorf("fetchTask failed for task %s: %w", taskId, err)
 	}
 	defer resp.Body.Close()
@@ -462,24 +488,38 @@ func updateVideoSingleTask(ctx context.Context, adaptor TaskPollingAdaptor, ch *
 		return fmt.Errorf("readAll failed for task %s: %w", taskId, err)
 	}
 
-	logger.LogDebug(ctx, "updateVideoSingleTask response: %s", responseBody)
+	common.SysLog(fmt.Sprintf("[polling] fetch response: publicTaskID=%s, upstreamTaskID=%s, statusCode=%d, body=%s",
+		task.TaskID, upstreamTaskID, resp.StatusCode, strings.TrimSpace(string(responseBody))))
+
+	if resp.StatusCode != http.StatusOK {
+		return fmt.Errorf("upstream returned status %d: %s", resp.StatusCode, strings.TrimSpace(string(responseBody)))
+	}
 
 	snap := task.Snapshot()
 
 	taskResult := &relaycommon.TaskInfo{}
-	// try parse as New API response format
-	var responseItems dto.TaskResponse[model.Task]
-	if err = common.Unmarshal(responseBody, &responseItems); err == nil && responseItems.IsSuccess() {
-		logger.LogDebug(ctx, "updateVideoSingleTask parsed as new api response format: %+v", responseItems)
-		t := responseItems.Data
-		taskResult.TaskID = t.TaskID
-		taskResult.Status = string(t.Status)
-		taskResult.Url = t.GetResultURL()
-		taskResult.Progress = t.Progress
-		taskResult.Reason = t.FailReason
-		task.Data = t.Data
-	} else if taskResult, err = adaptor.ParseTaskResult(responseBody); err != nil {
-		return fmt.Errorf("parseTaskResult failed for task %s: %w", taskId, err)
+	// 1. 优先使用适配器解析原始响应（支持各种嵌套格式、提取usage/total_tokens用于计费）
+	adaptorResult, adaptorErr := adaptor.ParseTaskResult(responseBody)
+	if adaptorErr == nil && adaptorResult != nil && adaptorResult.Status != "" {
+		taskResult = adaptorResult
+	} else {
+		// 2. 兜底：尝试解析为 New API 统一响应格式（当上游本身是new-api实例时）
+		var responseItems dto.TaskResponse[model.Task]
+		if err = common.Unmarshal(responseBody, &responseItems); err == nil && responseItems.IsSuccess() {
+			logger.LogDebug(ctx, "updateVideoSingleTask parsed as new api response format (fallback): %+v", responseItems)
+			t := responseItems.Data
+			taskResult.TaskID = t.TaskID
+			taskResult.Status = normalizeTaskStatus(string(t.Status))
+			taskResult.Url = t.GetResultURL()
+			taskResult.Progress = t.Progress
+			taskResult.Reason = t.FailReason
+			if adaptorErr != nil {
+				common.SysLog(fmt.Sprintf("[polling] adaptor parse failed, used fallback parser: %v", adaptorErr))
+			}
+		} else if adaptorErr != nil {
+			// 适配器和兜底都失败，返回错误
+			return fmt.Errorf("parseTaskResult failed for task %s: %w", taskId, adaptorErr)
+		}
 	}
 
 	task.Data = redactVideoResponseBody(responseBody)

@@ -511,16 +511,24 @@ func extractTaskResult(respBody []byte) (taskResult, error) {
 	return tr, nil
 }
 
-// findDeepestTaskData 递归查找含有 usage 字段的最深层 map。
-// 如果当前 map 有 usage 字段，直接返回；
-// 否则查找子 map 中是否有 data 字段继续递归。
+// findDeepestTaskData 递归查找任务数据：
+// 优先查找含有 usage 字段的对象（成功状态的最终数据）；
+// 如果没有找到，回退到查找同时含有 id 和 status 字段的对象（running/queued 状态没有 usage）。
+// 支持三种嵌套格式：
+//  1. 火山方舟原生（扁平）：{"id":"cgt-xxx","status":"succeeded","usage":{...}}
+//  2. new-api 中转（2层嵌套）：{"code":"success","data":{"status":"SUCCESS","data":{...}}}
+//  3. 三方中转（3层嵌套）：{"code":"success","data":{"data":{"data":{...}}}}
 func findDeepestTaskData(m map[string]interface{}) map[string]interface{} {
 	if m == nil {
 		return nil
 	}
+
+	// 第一优先：含有 usage 字段的对象
 	if _, hasUsage := m["usage"]; hasUsage {
 		return m
 	}
+
+	// 递归查找 data 子字段
 	for key, val := range m {
 		if key == "data" {
 			if subMap, ok := val.(map[string]interface{}); ok {
@@ -530,6 +538,14 @@ func findDeepestTaskData(m map[string]interface{}) map[string]interface{} {
 			}
 		}
 	}
+
+	// 回退：顶层对象同时有 id 和 status，认为是原生任务数据（running/queued 状态无 usage）
+	_, hasID := m["id"]
+	_, hasStatus := m["status"]
+	if hasID && hasStatus {
+		return m
+	}
+
 	return nil
 }
 
