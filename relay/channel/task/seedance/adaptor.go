@@ -56,10 +56,10 @@ type fetchResponse struct {
 
 // taskResult 上游真正的任务数据（VolcEngine Seedance 的响应）
 type taskResult struct {
-	ID         string `json:"id"`
-	Model      string `json:"model"`
-	Status     string `json:"status"`
-	Content    struct {
+	ID      string `json:"id"`
+	Model   string `json:"model"`
+	Status  string `json:"status"`
+	Content struct {
 		VideoURL string `json:"video_url"`
 	} `json:"content"`
 	Duration   int    `json:"duration"`
@@ -100,7 +100,8 @@ func (a *TaskAdaptor) Init(info *relaycommon.RelayInfo) {
 //
 // ModelPrice（按次计费）模式：预扣 = 单价 × 秒数 × 分辨率系数 × 视频输入系数
 // ModelRatio（按 token 计费）模式：预扣一半 ModelRatio；
-//   任务完成后框架按 total_tokens × ModelRatio × GroupRatio × (分辨率系数 × 视频输入系数) 差额结算
+//
+//	任务完成后框架按 total_tokens × ModelRatio × GroupRatio × (分辨率系数 × 视频输入系数) 差额结算
 func (a *TaskAdaptor) EstimateBilling(c *gin.Context, info *relaycommon.RelayInfo) map[string]float64 {
 	ratios := map[string]float64{}
 
@@ -437,15 +438,9 @@ func (a *TaskAdaptor) GetChannelName() string {
 }
 
 func (a *TaskAdaptor) ParseTaskResult(respBody []byte) (*relaycommon.TaskInfo, error) {
-	// 火山方舟原生 API 返回扁平结构：{"id":"...","status":"succeeded","content":{"video_url":"..."},...}
-	// new-api 中转站返回嵌套结构：{"code":"success","data":{"status":"SUCCESS","data":{...}}}
-	var inner taskResult
-
-	var nested fetchResponse
-	if err := common.Unmarshal(respBody, &nested); err == nil && nested.Data.Data.ID != "" {
-		inner = nested.Data.Data
-	} else if err2 := common.Unmarshal(respBody, &inner); err2 != nil {
-		return nil, errors.Wrap(err2, "unmarshal task result failed")
+	inner, err := extractTaskResult(respBody)
+	if err != nil {
+		return nil, err
 	}
 
 	result := relaycommon.TaskInfo{Code: 0}
@@ -478,19 +473,67 @@ func (a *TaskAdaptor) ParseTaskResult(respBody []byte) (*relaycommon.TaskInfo, e
 	return &result, nil
 }
 
+// extractTaskResult 从响应体中提取真正的任务数据。
+// 支持三种格式：
+//  1. 火山方舟原生（扁平）：{"id":"cgt-xxx","status":"succeeded","usage":{...}}
+//  2. new-api 中转（2层嵌套）：{"code":"success","data":{"status":"SUCCESS","data":{...}}}
+//  3. 三方中转（3层嵌套）：{"code":"success","data":{"data":{"data":{...}}}}
+//
+// 递归向下查找含有 usage 字段的最深层对象。
+func extractTaskResult(respBody []byte) (taskResult, error) {
+	var raw map[string]interface{}
+	if err := common.Unmarshal(respBody, &raw); err != nil {
+		return taskResult{}, errors.Wrap(err, "unmarshal task result failed")
+	}
+
+	deepest := findDeepestTaskData(raw)
+	if deepest == nil {
+		return taskResult{}, errors.New("task data not found in response")
+	}
+
+	dataBytes, err := common.Marshal(deepest)
+	if err != nil {
+		return taskResult{}, errors.Wrap(err, "marshal task data failed")
+	}
+
+	var tr taskResult
+	if err := common.Unmarshal(dataBytes, &tr); err != nil {
+		return taskResult{}, errors.Wrap(err, "unmarshal task data failed")
+	}
+	return tr, nil
+}
+
+// findDeepestTaskData 递归查找含有 usage 字段的最深层 map。
+// 如果当前 map 有 usage 字段，直接返回；
+// 否则查找子 map 中是否有 data 字段继续递归。
+func findDeepestTaskData(m map[string]interface{}) map[string]interface{} {
+	if m == nil {
+		return nil
+	}
+	if _, hasUsage := m["usage"]; hasUsage {
+		return m
+	}
+	for key, val := range m {
+		if key == "data" {
+			if subMap, ok := val.(map[string]interface{}); ok {
+				if result := findDeepestTaskData(subMap); result != nil {
+					return result
+				}
+			}
+		}
+	}
+	return nil
+}
+
 // AdjustBillingOnComplete 返回 0，让框架走 token 重算路径：
 // 任务完成后，框架按 total_tokens × ModelRatio × GroupRatio 自动计算实际额度，
 // 与预扣额度做差额结算（多退少补）。
 // 仅在 ModelRatio（非 ModelPrice）模式下生效，因为 ModelPrice 模式 PerCallBilling=true 会跳过此步。
 
 func (a *TaskAdaptor) ConvertToOpenAIVideo(originTask *model.Task) ([]byte, error) {
-	// 兼容火山方舟原生格式和 new-api 中转格式
-	var inner taskResult
-	var nested fetchResponse
-	if err := common.Unmarshal(originTask.Data, &nested); err == nil && nested.Data.Data.ID != "" {
-		inner = nested.Data.Data
-	} else if err2 := common.Unmarshal(originTask.Data, &inner); err2 != nil {
-		return nil, errors.Wrap(err2, "unmarshal seedance task data failed")
+	inner, err := extractTaskResult(originTask.Data)
+	if err != nil {
+		return nil, errors.Wrap(err, "unmarshal seedance task data failed")
 	}
 
 	openAIVideo := dto.NewOpenAIVideo()
