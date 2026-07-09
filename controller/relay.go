@@ -583,17 +583,32 @@ func RelayTask(c *gin.Context) {
 		task.PrivateData.BillingSource = relayInfo.BillingSource
 		task.PrivateData.SubscriptionId = relayInfo.SubscriptionId
 		task.PrivateData.TokenId = relayInfo.TokenId
+
+		inTaskPricePatches := common.StringsContains(constant.TaskPricePatches, relayInfo.OriginModelName)
+		perCallBilling := inTaskPricePatches || relayInfo.PriceData.UsePrice
 		task.PrivateData.BillingContext = &model.TaskBillingContext{
 			ModelPrice:      relayInfo.PriceData.ModelPrice,
 			GroupRatio:      relayInfo.PriceData.GroupRatioInfo.GroupRatio,
 			ModelRatio:      relayInfo.PriceData.ModelRatio,
 			OtherRatios:     relayInfo.PriceData.OtherRatios,
 			OriginModelName: relayInfo.OriginModelName,
-			PerCallBilling:  common.StringsContains(constant.TaskPricePatches, relayInfo.OriginModelName) || relayInfo.PriceData.UsePrice,
+			PerCallBilling:  perCallBilling,
 		}
 		task.Quota = result.Quota
 		task.Data = result.TaskData
 		task.Action = relayInfo.Action
+
+		logger.LogInfo(c, fmt.Sprintf("任务 %s 计费模式诊断: model=%s, UsePrice=%v, InTaskPricePatches=%v, PerCallBilling=%v, ModelPrice=%.4f, ModelRatio=%.4f, Quota=%d",
+			task.TaskID,
+			relayInfo.OriginModelName,
+			relayInfo.PriceData.UsePrice,
+			inTaskPricePatches,
+			perCallBilling,
+			relayInfo.PriceData.ModelPrice,
+			relayInfo.PriceData.ModelRatio,
+			result.Quota,
+		))
+
 		if insertErr := task.Insert(); insertErr != nil {
 			common.SysError("insert task error: " + insertErr.Error())
 		}

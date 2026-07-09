@@ -374,6 +374,8 @@ func (a *TaskAdaptor) DoResponse(c *gin.Context, resp *http.Response, info *rela
 	}
 	_ = resp.Body.Close()
 
+	common.SysLog(fmt.Sprintf("[seedance] submit response body: %s", strings.TrimSpace(string(responseBody))))
+
 	if resp.StatusCode != http.StatusOK {
 		taskErr = service.TaskErrorWrapper(
 			fmt.Errorf("upstream returned status %d: %s", resp.StatusCode, strings.TrimSpace(string(responseBody))),
@@ -438,10 +440,16 @@ func (a *TaskAdaptor) GetChannelName() string {
 }
 
 func (a *TaskAdaptor) ParseTaskResult(respBody []byte) (*relaycommon.TaskInfo, error) {
+	common.SysLog(fmt.Sprintf("[seedance] fetch response body: %s", strings.TrimSpace(string(respBody))))
+
 	inner, err := extractTaskResult(respBody)
 	if err != nil {
+		common.SysLog(fmt.Sprintf("[seedance] extractTaskResult failed: %s", err.Error()))
 		return nil, err
 	}
+
+	common.SysLog(fmt.Sprintf("[seedance] extracted task: id=%s, status=%s, total_tokens=%d, completion_tokens=%d, video_url=%s",
+		inner.ID, inner.Status, inner.Usage.TotalTokens, inner.Usage.CompletionTokens, inner.Content.VideoURL))
 
 	result := relaycommon.TaskInfo{Code: 0}
 

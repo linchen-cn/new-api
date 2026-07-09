@@ -12,8 +12,8 @@ var ChannelName = "Seedance"
 // 其他分辨率会自动乘以此系数。
 var resolutionRatioMap = map[string]float64{
 	"480p":  1.0,
-	"720p":  2.0,
-	"1080p": 4.0,
+	"720p":  1.0,
+	"1080p": 1.1087,
 }
 
 // GetResolutionRatio 返回指定分辨率的计费倍数。
@@ -27,8 +27,9 @@ func GetResolutionRatio(resolution string) (float64, bool) {
 // 按模型名查找系数并乘到最终额度上。
 // 管理员可在此为不同模型配置不同的视频输入加价倍数。
 var videoInputRatioMap = map[string]float64{
-	"Doubao-Seedance-2.0":      1.5,
-	"Doubao-Seedance-2.0-fast": 1.5,
+	"Doubao-Seedance-2.0":      0.6087,
+	"Doubao-Seedance-2.0-fast": 0.5946,
+	"Doubao-Seedance-2.0-mini": 0.6087,
 }
 
 // GetVideoInputRatio 返回指定模型的视频输入计费倍数。
