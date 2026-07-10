@@ -18,10 +18,10 @@
     "openai",
     "claude"
   ],
-  "author": "QuantumNous",
+  "author": "Free2cloud",
   "repository": {
     "type": "git",
-    "url": "https://github.com/QuantumNous/new-api"
+    "url": "https://ai.free2cloud.cn"
   },
   "devDependencies": {
     "cross-env": "^7.0.3",

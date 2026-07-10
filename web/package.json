@@ -1,6 +1,13 @@
 {
   "name": "new-api-web-workspace",
   "private": true,
+  "dependencies": {
+    "date-fns": "^2.30.0",
+    "date-fns-tz": "^2.0.0"
+  },
+  "overrides": {
+    "date-fns": "^2.30.0"
+  },
   "workspaces": [
     "default",
     "classic"
