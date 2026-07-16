@@ -57,7 +57,8 @@ const (
 	ChannelTypeCodex          = 57
 	ChannelTypeAdvancedCustom = 58
 	ChannelTypeSeedance       = 59
-	ChannelTypeDummy          // this one is only for count, do not add any channel after this
+	ChannelTypeDoubaoVoice    = 60
+	ChannelTypeDummy         // this one is only for count, do not add any channel after this
 
 )
 
@@ -122,6 +123,7 @@ var ChannelBaseURLs = []string{
 	"https://chatgpt.com",                       //57
 	"",                                          //58
 	"https://ai.kedang.net",                     //59
+	"https://openspeech.bytedance.com",           //60
 }
 
 var ChannelTypeNames = map[int]string{
@@ -181,6 +183,7 @@ var ChannelTypeNames = map[int]string{
 	ChannelTypeCodex:          "ChatGPT Subscription (Codex)",
 	ChannelTypeAdvancedCustom: "Advanced Custom",
 	ChannelTypeSeedance:       "Seedance",
+	ChannelTypeDoubaoVoice:    "DoubaoVoice",
 }
 
 func GetChannelTypeName(channelType int) string {

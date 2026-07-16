@@ -144,6 +144,17 @@ export const CHANNEL_TYPE_CONFIGS: Record<number, ChannelTypeConfig> = {
       models: 'Models exposed by this channel',
     },
   },
+  60: {
+    id: 60,
+    name: CHANNEL_TYPES[60],
+    icon: 'volcengine',
+    defaultBaseUrl: 'https://openspeech.bytedance.com',
+    hints: {
+      baseUrl: 'Default: https://openspeech.bytedance.com',
+      key: 'Doubao Voice API Key',
+      models: 'seed-audio-1.0',
+    },
+  },
 }
 
 /**

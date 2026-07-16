@@ -49,6 +49,7 @@ import (
 	"github.com/QuantumNous/new-api/relay/channel/xunfei"
 	"github.com/QuantumNous/new-api/relay/channel/zhipu"
 	"github.com/QuantumNous/new-api/relay/channel/zhipu_4v"
+	"github.com/QuantumNous/new-api/relay/channel/doubaovoice"
 	"github.com/gin-gonic/gin"
 )
 
@@ -124,6 +125,8 @@ func GetAdaptor(apiType int) channel.Adaptor {
 		return &codex.Adaptor{}
 	case constant.APITypeAdvancedCustom:
 		return &advancedcustom.Adaptor{}
+	case constant.APITypeDoubaoVoice:
+		return &doubaovoice.Adaptor{}
 	}
 	return nil
 }
