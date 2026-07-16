@@ -10,11 +10,13 @@ import (
 	"net/http"
 	"strings"
 
+	"github.com/QuantumNous/new-api/common"
 	channelconstant "github.com/QuantumNous/new-api/constant"
 	"github.com/QuantumNous/new-api/dto"
 	"github.com/QuantumNous/new-api/relay/channel"
 	relaycommon "github.com/QuantumNous/new-api/relay/common"
 	"github.com/QuantumNous/new-api/relay/constant"
+	"github.com/QuantumNous/new-api/service"
 	"github.com/QuantumNous/new-api/types"
 
 	"github.com/gin-gonic/gin"
@@ -121,8 +123,8 @@ func (a *Adaptor) ConvertAudioRequest(c *gin.Context, info *relaycommon.RelayInf
 
 	// 初始化基础请求
 	doubaoReq := DoubaoVoiceRequest{
-		Model:      info.UpstreamModelName,
-		TextPrompt: request.Input,
+		Model:        info.UpstreamModelName,
+		TextPrompt:   request.Input,
 	}
 
 	// 设置 speaker 或根据 voice 字段
@@ -152,7 +154,7 @@ func (a *Adaptor) ConvertAudioRequest(c *gin.Context, info *relaycommon.RelayInf
 	// 如果有 metadata 字段，我们可以合并所有豆包语音特有的参数
 	if len(request.Metadata) > 0 {
 		var metadataMap map[string]any
-		if err := json.Unmarshal(request.Metadata, &metadataMap); err == nil {
+		if err := json.Unmarshal(request.Metadata, metadataMap); err == nil {
 			// 优先检查 metadata 中是否有完整的 doubao_request 对象，如果有就直接使用
 			if fullReq, ok := metadataMap["doubao_request"].(map[string]any); ok {
 				// 将完整的请求对象转换为 JSON 再解析到我们的结构体中
@@ -160,15 +162,12 @@ func (a *Adaptor) ConvertAudioRequest(c *gin.Context, info *relaycommon.RelayInf
 				if jsonErr == nil {
 					var fullDoubaoReq DoubaoVoiceRequest
 					if parseErr := json.Unmarshal(fullReqJson, &fullDoubaoReq); parseErr == nil {
-						// 保留我们已经设置的必要字段作为默认值（如果用户在 doubao_request 中没有提供）
+						// 保留我们已经设置的必要字段（model，text_prompt等）
 						if fullDoubaoReq.Model == "" {
 							fullDoubaoReq.Model = info.UpstreamModelName
 						}
 						if fullDoubaoReq.TextPrompt == "" {
 							fullDoubaoReq.TextPrompt = request.Input
-						}
-						if fullDoubaoReq.Speaker == "" {
-							fullDoubaoReq.Speaker = request.Voice
 						}
 						doubaoReq = fullDoubaoReq
 					}
@@ -196,21 +195,11 @@ func (a *Adaptor) ConvertAudioRequest(c *gin.Context, info *relaycommon.RelayInf
 					for _, refRaw := range referencesRaw {
 						if refMap, ok := refRaw.(map[string]any); ok {
 							var ref Reference
-							if speaker, ok := refMap["speaker"].(string); ok {
-								ref.Speaker = speaker
-							}
-							if audioData, ok := refMap["audio_data"].(string); ok {
-								ref.AudioData = audioData
-							}
-							if audioUrl, ok := refMap["audio_url"].(string); ok {
-								ref.AudioUrl = audioUrl
-							}
-							if imageData, ok := refMap["image_data"].(string); ok {
-								ref.ImageData = imageData
-							}
-							if imageUrl, ok := refMap["image_url"].(string); ok {
-								ref.ImageUrl = imageUrl
-							}
+							if speaker, ok := refMap["speaker"].(string); ok {ref.Speaker = speaker}
+							if audioData, ok := refMap["audio_data"].(string); ok {ref.AudioData = audioData}
+							if audioUrl, ok := refMap["audio_url"].(string); ok {ref.AudioUrl = audioUrl}
+							if imageData, ok := refMap["image_data"].(string); ok {ref.ImageData = imageData}
+							if imageUrl, ok := refMap["image_url"].(string); ok {ref.ImageUrl = imageUrl}
 							references = append(references, ref)
 						}
 					}
@@ -235,29 +224,6 @@ func (a *Adaptor) ConvertAudioRequest(c *gin.Context, info *relaycommon.RelayInf
 					}
 					if enableSubtitle, ok := audioConfigMap["enable_subtitle"].(bool); ok {
 						doubaoReq.AudioConfig.EnableSubtitle = enableSubtitle
-					}
-				}
-				// 处理 watermark
-				if watermarkMap, ok := metadataMap["watermark"].(map[string]any); ok {
-					if aigcWatermark, ok := watermarkMap["aigc_watermark"].(bool); ok {
-						doubaoReq.Watermark.AigcWatermark = aigcWatermark
-					}
-					if aigcMetadataMap, ok := watermarkMap["aigc_metadata"].(map[string]any); ok {
-						if enable, ok := aigcMetadataMap["enable"].(bool); ok {
-							doubaoReq.Watermark.AigcMetadata.Enable = enable
-						}
-						if contentProducer, ok := aigcMetadataMap["content_producer"].(string); ok {
-							doubaoReq.Watermark.AigcMetadata.ContentProducer = contentProducer
-						}
-						if produceId, ok := aigcMetadataMap["produce_id"].(string); ok {
-							doubaoReq.Watermark.AigcMetadata.ProduceID = produceId
-						}
-						if contentPropagator, ok := aigcMetadataMap["content_propagator"].(string); ok {
-							doubaoReq.Watermark.AigcMetadata.ContentPropagator = contentPropagator
-						}
-						if propagateId, ok := aigcMetadataMap["propagate_id"].(string); ok {
-							doubaoReq.Watermark.AigcMetadata.PropagateID = propagateId
-						}
 					}
 				}
 			}
@@ -309,6 +275,13 @@ func (a *Adaptor) DoResponse(c *gin.Context, resp *http.Response, info *relaycom
 		)
 	}
 
+	// 保存语音时长到 context，用于后续计费
+	if doubaoResp.OriginalDuration > 0 {
+		c.Set("doubao_audio_duration", doubaoResp.OriginalDuration)
+	} else if doubaoResp.Duration > 0 {
+		c.Set("doubao_audio_duration", doubaoResp.Duration)
+	}
+
 	// 解码 Base64 音频数据
 	audioData, decodeErr := base64.StdEncoding.DecodeString(doubaoResp.Audio)
 	if decodeErr != nil {
@@ -344,4 +317,26 @@ func (a *Adaptor) GetModelList() []string {
 
 func (a *Adaptor) GetChannelName() string {
 	return ChannelName
+}
+
+// RecalculateDoubaoVoiceQuota 根据语音时长重新计算quota
+func RecalculateDoubaoVoiceQuota(c *gin.Context, info *relaycommon.RelayInfo, durationSeconds float64) error {
+	// 1元/分钟，所以每秒钟是 1/60 元
+	const yuanPerMinute = 1.0
+	seconds := durationSeconds
+	minutes := seconds / 60.0
+
+	// 计算所需金额
+	amountYuan := minutes * yuanPerMinute
+
+	// 转换为配额单位，1元等于 common.QuotaPerUnit 个单位
+	quotaPerUnit := float64(common.QuotaPerUnit)
+	quota := int(amountYuan * quotaPerUnit)
+
+	// 调用 SettleBilling 进行差额结算
+	if err := service.SettleBilling(c, info, quota); err != nil {
+		return err
+	}
+
+	return nil
 }
