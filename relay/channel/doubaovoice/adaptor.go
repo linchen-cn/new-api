@@ -154,7 +154,7 @@ func (a *Adaptor) ConvertAudioRequest(c *gin.Context, info *relaycommon.RelayInf
 	// 如果有 metadata 字段，我们可以合并所有豆包语音特有的参数
 	if len(request.Metadata) > 0 {
 		var metadataMap map[string]any
-		if err := json.Unmarshal(request.Metadata, metadataMap); err == nil {
+		if err := json.Unmarshal(request.Metadata, &metadataMap); err == nil {
 			// 优先检查 metadata 中是否有完整的 doubao_request 对象，如果有就直接使用
 			if fullReq, ok := metadataMap["doubao_request"].(map[string]any); ok {
 				// 将完整的请求对象转换为 JSON 再解析到我们的结构体中

@@ -104,6 +104,7 @@ export function getChannelTypeIcon(type: number): string {
     56: 'Replicate', // Replicate
     59: 'Doubao', // Seedance
     60: 'Doubao', // DoubaoVoice
+    61: 'Doubao', // DoubaoTTS
 
     // Tools & Platforms
     37: 'Dify', // Dify

@@ -79,6 +79,8 @@ func ChannelType2APIType(channelType int) (int, bool) {
 		apiType = constant.APITypeAdvancedCustom
 	case constant.ChannelTypeDoubaoVoice:
 		apiType = constant.APITypeDoubaoVoice
+	case constant.ChannelTypeDoubaoTTS:
+		apiType = constant.APITypeDoubaoTTS
 	}
 	if apiType == -1 {
 		return constant.APITypeOpenAI, false

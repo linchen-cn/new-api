@@ -58,6 +58,7 @@ const (
 	ChannelTypeAdvancedCustom = 58
 	ChannelTypeSeedance       = 59
 	ChannelTypeDoubaoVoice    = 60
+	ChannelTypeDoubaoTTS      = 61
 	ChannelTypeDummy         // this one is only for count, do not add any channel after this
 
 )
@@ -124,6 +125,7 @@ var ChannelBaseURLs = []string{
 	"",                                          //58
 	"https://ai.kedang.net",                     //59
 	"https://openspeech.bytedance.com",           //60
+	"https://openspeech.bytedance.com",           //61
 }
 
 var ChannelTypeNames = map[int]string{
@@ -184,6 +186,7 @@ var ChannelTypeNames = map[int]string{
 	ChannelTypeAdvancedCustom: "Advanced Custom",
 	ChannelTypeSeedance:       "Seedance",
 	ChannelTypeDoubaoVoice:    "DoubaoVoice",
+	ChannelTypeDoubaoTTS:      "DoubaoTTS",
 }
 
 func GetChannelTypeName(channelType int) string {

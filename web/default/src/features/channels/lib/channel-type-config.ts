@@ -155,6 +155,17 @@ export const CHANNEL_TYPE_CONFIGS: Record<number, ChannelTypeConfig> = {
       models: 'seed-audio-1.0',
     },
   },
+  61: {
+    id: 61,
+    name: CHANNEL_TYPES[61],
+    icon: 'volcengine',
+    defaultBaseUrl: 'https://openspeech.bytedance.com',
+    hints: {
+      baseUrl: 'Default: https://openspeech.bytedance.com',
+      key: 'Doubao TTS API Key',
+      models: 'seed-tts-2.0',
+    },
+  },
 }
 
 /**
