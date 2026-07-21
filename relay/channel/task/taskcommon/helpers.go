@@ -17,7 +17,6 @@ func UnmarshalMetadata(metadata map[string]any, target any) error {
 	if metadata == nil {
 		return nil
 	}
-	// Prevent metadata from overriding model fields to avoid billing bypass.
 	delete(metadata, "model")
 	metaBytes, err := common.Marshal(metadata)
 	if err != nil {
@@ -73,6 +72,67 @@ const (
 	ProgressInProgress = "30%"
 	ProgressComplete   = "100%"
 )
+
+// ExtractDeepestTaskData 从响应体中提取最内层的任务数据。
+// 支持三种格式：
+//  1. 官方原生（扁平）：{"id":"cgt-xxx","status":"succeeded","usage":{...}}
+//  2. new-api 中转（2层嵌套）：{"code":"success","data":{"status":"SUCCESS","data":{...}}}
+//  3. 三方中转（3层嵌套）：{"code":"success","data":{"data":{"data":{...}}}}
+//
+// 递归向下查找含有 usage 字段的最深层对象；如果没有，回退到查找同时含有 id 和 status 的对象。
+func ExtractDeepestTaskData(taskData []byte) []byte {
+	if len(taskData) == 0 {
+		return taskData
+	}
+
+	var raw map[string]interface{}
+	if err := common.Unmarshal(taskData, &raw); err != nil {
+		return taskData
+	}
+
+	deepest := findDeepestTaskData(raw)
+	if deepest == nil {
+		return taskData
+	}
+
+	dataBytes, err := common.Marshal(deepest)
+	if err != nil {
+		return taskData
+	}
+
+	return dataBytes
+}
+
+// findDeepestTaskData 递归查找任务数据：
+// 优先查找含有 usage 字段的对象（成功状态的最终数据）；
+// 如果没有找到，回退到查找同时含有 id 和 status 字段的对象（running/queued 状态没有 usage）。
+func findDeepestTaskData(m map[string]interface{}) map[string]interface{} {
+	if m == nil {
+		return nil
+	}
+
+	if _, hasUsage := m["usage"]; hasUsage {
+		return m
+	}
+
+	for key, val := range m {
+		if key == "data" {
+			if subMap, ok := val.(map[string]interface{}); ok {
+				if result := findDeepestTaskData(subMap); result != nil {
+					return result
+				}
+			}
+		}
+	}
+
+	_, hasID := m["id"]
+	_, hasStatus := m["status"]
+	if hasID && hasStatus {
+		return m
+	}
+
+	return nil
+}
 
 // ---------------------------------------------------------------------------
 // BaseBilling — embeddable no-op implementations for TaskAdaptor billing methods.
