@@ -166,6 +166,17 @@ export const CHANNEL_TYPE_CONFIGS: Record<number, ChannelTypeConfig> = {
       models: 'seed-tts-2.0',
     },
   },
+  62: {
+    id: 62,
+    name: CHANNEL_TYPES[62],
+    icon: 'volcengine',
+    defaultBaseUrl: 'https://open.volcengineapi.com',
+    hints: {
+      baseUrl: 'Default: https://open.volcengineapi.com',
+      key: 'AccessKey|SecretKey (火山引擎 AK|SK)',
+      models: 'volc_music, volc_song, volc_bgm',
+    },
+  },
 }
 
 /**

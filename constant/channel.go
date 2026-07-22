@@ -59,6 +59,7 @@ const (
 	ChannelTypeSeedance       = 59
 	ChannelTypeDoubaoVoice    = 60
 	ChannelTypeDoubaoTTS      = 61
+	ChannelTypeVolcMusic      = 62
 	ChannelTypeDummy         // this one is only for count, do not add any channel after this
 
 )
@@ -126,6 +127,7 @@ var ChannelBaseURLs = []string{
 	"https://ai.kedang.net",                     //59
 	"https://openspeech.bytedance.com",           //60
 	"https://openspeech.bytedance.com",           //61
+	"https://open.volcengineapi.com",             //62
 }
 
 var ChannelTypeNames = map[int]string{
@@ -187,6 +189,7 @@ var ChannelTypeNames = map[int]string{
 	ChannelTypeSeedance:       "Seedance",
 	ChannelTypeDoubaoVoice:    "DoubaoVoice",
 	ChannelTypeDoubaoTTS:      "DoubaoTTS",
+	ChannelTypeVolcMusic:      "VolcMusic",
 }
 
 func GetChannelTypeName(channelType int) string {

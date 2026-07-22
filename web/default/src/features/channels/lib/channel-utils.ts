@@ -105,6 +105,7 @@ export function getChannelTypeIcon(type: number): string {
     59: 'Doubao', // Seedance
     60: 'Doubao', // DoubaoVoice
     61: 'Doubao', // DoubaoTTS
+    62: 'Doubao', // VolcMusic
 
     // Tools & Platforms
     37: 'Dify', // Dify
