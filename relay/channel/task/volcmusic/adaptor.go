@@ -35,6 +35,7 @@ const (
 
 // TaskAdaptor 实现火山引擎音乐生成的任务型适配器。
 // 该 API 为异步任务型，使用火山引擎 HMAC-SHA256 签名鉴权（region=cn-beijing, service=imagination）。
+// 计费方式：预扣为正常额度的 1/100，任务完成后按实际 Duration（秒数）× ModelRatio × GroupRatio 差额结算。
 type TaskAdaptor struct {
 	taskcommon.BaseBilling
 	ChannelType int
@@ -43,6 +44,32 @@ type TaskAdaptor struct {
 	baseURL     string
 	// musicType 由 ValidateRequestAndSetAction 解析，决定调用 GenSongForTime 还是 GenBGMForTime。
 	musicType string
+}
+
+// preChargeRatio 预扣比例：预扣仅为正常额度的 1/100，避免长时间任务占用过多额度。
+const preChargeRatio = 0.01
+
+// EstimateBilling 设置预扣比例为 1/100。
+func (a *TaskAdaptor) EstimateBilling(_ *gin.Context, _ *relaycommon.RelayInfo) map[string]float64 {
+	return map[string]float64{
+		"pre_charge_ratio": preChargeRatio,
+	}
+}
+
+// AdjustBillingOnComplete 任务完成后按实际 Duration（秒数）× ModelRatio × GroupRatio 计算实际费用。
+// 不使用预扣时的 0.01 系数，确保最终计费准确。
+// 返回正值后框架会通过 RecalculateTaskQuota 做差额结算（多退少补）。
+func (a *TaskAdaptor) AdjustBillingOnComplete(task *model.Task, taskResult *relaycommon.TaskInfo) int {
+	if taskResult.TotalTokens <= 0 {
+		return 0
+	}
+	bc := task.PrivateData.BillingContext
+	if bc == nil {
+		return 0
+	}
+	// 实际费用 = Duration(秒) × ModelRatio × GroupRatio（不乘预扣比例）
+	actualQuota := int(float64(taskResult.TotalTokens) * bc.ModelRatio * bc.GroupRatio)
+	return actualQuota
 }
 
 func (a *TaskAdaptor) Init(info *relaycommon.RelayInfo) {
