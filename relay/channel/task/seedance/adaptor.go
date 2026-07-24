@@ -304,30 +304,46 @@ func isVolcEngine(baseURL string) bool {
 	return strings.Contains(baseURL, "volces.com") || strings.Contains(baseURL, "volcengine.com")
 }
 
+// isYSEngine 判断 Base URL 是否指向萤石 EZViz API。
+func isYSEngine(baseURL string) bool {
+	return strings.Contains(baseURL, "ys7.com")
+}
+
 // submitPath 返回提交任务的 API 路径。
 func submitPath(baseURL string) string {
 	if isVolcEngine(baseURL) {
 		return "/api/v3/contents/generations/tasks"
+	}
+	if isYSEngine(baseURL) {
+		return "/v1/videos/generations"
 	}
 	return "/v1/video/generations"
 }
 
 // fetchPath 返回查询任务的 API 路径。
 func fetchPath(baseURL, taskID string) string {
+	baseURL = strings.TrimRight(baseURL, "/")
 	if isVolcEngine(baseURL) {
 		return fmt.Sprintf("%s/api/v3/contents/generations/tasks/%s", baseURL, taskID)
+	}
+	if isYSEngine(baseURL) {
+		return fmt.Sprintf("%s/v1/videos/generations/query?taskId=%s", baseURL, taskID)
 	}
 	return fmt.Sprintf("%s/v1/video/generations/%s", baseURL, taskID)
 }
 
 func (a *TaskAdaptor) BuildRequestURL(_ *relaycommon.RelayInfo) (string, error) {
-	return fmt.Sprintf("%s%s", a.baseURL, submitPath(a.baseURL)), nil
+	baseURL := strings.TrimRight(a.baseURL, "/")
+	url := fmt.Sprintf("%s%s", baseURL, submitPath(baseURL))
+	common.SysLog(fmt.Sprintf("[seedance] submit request URL: %s", url))
+	return url, nil
 }
 
 func (a *TaskAdaptor) BuildRequestHeader(_ *gin.Context, req *http.Request, _ *relaycommon.RelayInfo) error {
 	req.Header.Set("Content-Type", "application/json")
 	req.Header.Set("Accept", "application/json")
 	req.Header.Set("Authorization", "Bearer "+a.apiKey)
+	common.SysLog(fmt.Sprintf("[seedance] submit request headers: %s", formatHeaders(req.Header)))
 	return nil
 }
 
@@ -414,6 +430,7 @@ func (a *TaskAdaptor) FetchTask(baseUrl, key string, body map[string]any, proxy 
 	}
 
 	uri := fetchPath(baseUrl, taskID)
+	common.SysLog(fmt.Sprintf("[seedance] fetch request URL: %s", uri))
 
 	req, err := http.NewRequest(http.MethodGet, uri, nil)
 	if err != nil {
@@ -423,12 +440,27 @@ func (a *TaskAdaptor) FetchTask(baseUrl, key string, body map[string]any, proxy 
 	req.Header.Set("Accept", "application/json")
 	req.Header.Set("Content-Type", "application/json")
 	req.Header.Set("Authorization", "Bearer "+key)
+	common.SysLog(fmt.Sprintf("[seedance] fetch request headers: %s", formatHeaders(req.Header)))
 
 	client, err := service.GetHttpClientWithProxy(proxy)
 	if err != nil {
 		return nil, fmt.Errorf("new proxy http client failed: %w", err)
 	}
 	return client.Do(req)
+}
+
+// formatHeaders 将 http.Header 格式化为可读字符串，敏感的 Authorization 值做脱敏处理。
+func formatHeaders(h http.Header) string {
+	var sb strings.Builder
+	for k, vs := range h {
+		for _, v := range vs {
+			if k == "Authorization" && len(v) > 12 {
+				v = v[:12] + "******"
+			}
+			sb.WriteString(fmt.Sprintf("%s: %s; ", k, v))
+		}
+	}
+	return sb.String()
 }
 
 func (a *TaskAdaptor) GetModelList() []string {
