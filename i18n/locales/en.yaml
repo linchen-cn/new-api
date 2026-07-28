@@ -102,6 +102,23 @@ user.telegram_id_empty: "Telegram ID is empty!"
 user.telegram_not_bound: "This Telegram account is not bound"
 user.linux_do_id_empty: "Linux DO ID is empty!"
 user.quota_change_zero: "Quota change amount cannot be zero"
+user.phone_empty: "Phone number is empty!"
+user.phone_already_taken: "This phone number is already registered"
+
+# SMS messages
+sms.not_enabled: "SMS service is not enabled"
+sms.login_not_enabled: "SMS login is not enabled"
+sms.invalid_phone: "Invalid phone number format"
+sms.phone_not_registered: "This phone number is not registered"
+sms.phone_already_bound: "This phone number is already bound to another account"
+sms.code_error: "Verification code is incorrect or has expired"
+sms.code_sent: "Verification code sent"
+sms.send_failed: "Failed to send SMS"
+sms.phone_or_code_empty: "Phone number or verification code is invalid"
+sms.bind_success: "Phone number bound successfully"
+sms.user_disabled: "User has been disabled"
+sms.service_not_enabled: "SMS service is not enabled"
+sms.create_client_failed: "Failed to create SMS client"
 
 # Quota messages
 quota.negative: "Quota cannot be negative!"

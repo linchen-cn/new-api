@@ -224,6 +224,13 @@ func Register(c *gin.Context) {
 	if common.EmailVerificationEnabled {
 		cleanUser.Email = user.Email
 	}
+	if user.Phone != "" {
+		if model.IsPhoneAlreadyTaken(user.Phone) {
+			common.ApiErrorI18n(c, i18n.MsgUserPhoneAlreadyTaken)
+			return
+		}
+		cleanUser.Phone = user.Phone
+	}
 	if err := cleanUser.Insert(inviterId); err != nil {
 		common.ApiError(c, err)
 		return
@@ -267,6 +274,7 @@ func Register(c *gin.Context) {
 	c.JSON(http.StatusOK, gin.H{
 		"success": true,
 		"message": "",
+		"data":    cleanUser.Id,
 	})
 	return
 }
@@ -902,6 +910,13 @@ func CreateUser(c *gin.Context) {
 		DisplayName: user.DisplayName,
 		Role:        user.Role, // 保持管理员设置的角色
 	}
+	if user.Phone != "" {
+		if model.IsPhoneAlreadyTaken(user.Phone) {
+			common.ApiErrorI18n(c, i18n.MsgUserPhoneAlreadyTaken)
+			return
+		}
+		cleanUser.Phone = user.Phone
+	}
 	if err := cleanUser.Insert(0); err != nil {
 		common.ApiError(c, err)
 		return
@@ -914,6 +929,7 @@ func CreateUser(c *gin.Context) {
 	c.JSON(http.StatusOK, gin.H{
 		"success": true,
 		"message": "",
+		"data":    cleanUser.Id,
 	})
 	return
 }

@@ -103,6 +103,23 @@ user.telegram_id_empty: "Telegram id 为空！"
 user.telegram_not_bound: "该 Telegram 账户未绑定"
 user.linux_do_id_empty: "Linux DO id 为空！"
 user.quota_change_zero: "额度变更量不能为0"
+user.phone_empty: "手机号为空！"
+user.phone_already_taken: "该手机号已被注册"
+
+# SMS messages
+sms.not_enabled: "短信服务未启用"
+sms.login_not_enabled: "短信登录未启用"
+sms.invalid_phone: "手机号格式不正确"
+sms.phone_not_registered: "该手机号未注册"
+sms.phone_already_bound: "该手机号已被其他账号绑定"
+sms.code_error: "验证码错误或已过期"
+sms.code_sent: "验证码已发送"
+sms.send_failed: "发送短信失败"
+sms.phone_or_code_empty: "手机号或验证码无效"
+sms.bind_success: "手机号绑定成功"
+sms.user_disabled: "用户已被禁用"
+sms.service_not_enabled: "短信服务未启用"
+sms.create_client_failed: "创建短信客户端失败"
 
 # Quota messages
 quota.negative: "额度不能为负数！"

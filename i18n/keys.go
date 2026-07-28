@@ -114,6 +114,25 @@ const (
 	MsgUserTelegramNotBound          = "user.telegram_not_bound"
 	MsgUserLinuxDOIdEmpty            = "user.linux_do_id_empty"
 	MsgUserQuotaChangeZero           = "user.quota_change_zero"
+	MsgUserPhoneEmpty                = "user.phone_empty"
+	MsgUserPhoneAlreadyTaken         = "user.phone_already_taken"
+)
+
+// SMS related messages
+const (
+	MsgSMSNotEnabled       = "sms.not_enabled"
+	MsgSMSLoginNotEnabled  = "sms.login_not_enabled"
+	MsgSMSInvalidPhone     = "sms.invalid_phone"
+	MsgSMSPhoneNotRegistered = "sms.phone_not_registered"
+	MsgSMSPhoneAlreadyBound  = "sms.phone_already_bound"
+	MsgSMSCodeError        = "sms.code_error"
+	MsgSMSCodeSent         = "sms.code_sent"
+	MsgSMSSendFailed       = "sms.send_failed"
+	MsgSMSPhoneOrCodeEmpty = "sms.phone_or_code_empty"
+	MsgSMSBindSuccess      = "sms.bind_success"
+	MsgSMSUserDisabled     = "sms.user_disabled"
+	MsgSMSServiceNotEnabled = "sms.service_not_enabled"
+	MsgSMSCreateClientFailed = "sms.create_client_failed"
 )
 
 // Quota related messages

@@ -8,6 +8,7 @@ import (
 	"strings"
 
 	"github.com/QuantumNous/new-api/common"
+	"github.com/QuantumNous/new-api/i18n"
 	"github.com/QuantumNous/new-api/model"
 	"github.com/QuantumNous/new-api/service"
 	"github.com/QuantumNous/new-api/setting/system_setting"
@@ -26,28 +27,19 @@ type SendSMSCodeRequest struct {
 func SendSMSCode(c *gin.Context) {
 	settings := system_setting.GetAliyunSMSSettings()
 	if !settings.Enabled {
-		c.JSON(http.StatusOK, gin.H{
-			"success": false,
-			"message": "短信服务未启用",
-		})
+		common.ApiErrorI18n(c, i18n.MsgSMSNotEnabled)
 		return
 	}
 
 	var req SendSMSCodeRequest
 	if err := json.NewDecoder(c.Request.Body).Decode(&req); err != nil {
-		c.JSON(http.StatusOK, gin.H{
-			"success": false,
-			"message": "无效的请求参数",
-		})
+		common.ApiErrorI18n(c, i18n.MsgInvalidParams)
 		return
 	}
 
 	phone := strings.TrimSpace(req.Phone)
 	if !phoneRegex.MatchString(phone) {
-		c.JSON(http.StatusOK, gin.H{
-			"success": false,
-			"message": "手机号格式不正确",
-		})
+		common.ApiErrorI18n(c, i18n.MsgSMSInvalidPhone)
 		return
 	}
 
@@ -57,18 +49,12 @@ func SendSMSCode(c *gin.Context) {
 	if req.Purpose == "bind" {
 		purpose = common.SMSBindPurpose
 		if phoneTaken {
-			c.JSON(http.StatusOK, gin.H{
-				"success": false,
-				"message": "该手机号已被其他账号绑定",
-			})
+			common.ApiErrorI18n(c, i18n.MsgSMSPhoneAlreadyBound)
 			return
 		}
 	} else {
 		if !phoneTaken {
-			c.JSON(http.StatusOK, gin.H{
-				"success": false,
-				"message": "该手机号未注册",
-			})
+			common.ApiErrorI18n(c, i18n.MsgSMSPhoneNotRegistered)
 			return
 		}
 	}
@@ -81,14 +67,14 @@ func SendSMSCode(c *gin.Context) {
 		common.DeleteKey(phone, purpose)
 		c.JSON(http.StatusOK, gin.H{
 			"success": false,
-			"message": err.Error(),
+			"message": i18n.T(c, i18n.MsgSMSSendFailed) + ": " + err.Error(),
 		})
 		return
 	}
 
 	c.JSON(http.StatusOK, gin.H{
 		"success": true,
-		"message": "验证码已发送",
+		"message": i18n.T(c, i18n.MsgSMSCodeSent),
 	})
 }
 
@@ -100,19 +86,13 @@ type SMSLoginRequest struct {
 // SMSLogin 手机号验证码登录
 func SMSLogin(c *gin.Context) {
 	if !system_setting.GetAliyunSMSSettings().Enabled {
-		c.JSON(http.StatusOK, gin.H{
-			"success": false,
-			"message": "短信登录未启用",
-		})
+		common.ApiErrorI18n(c, i18n.MsgSMSLoginNotEnabled)
 		return
 	}
 
 	var req SMSLoginRequest
 	if err := json.NewDecoder(c.Request.Body).Decode(&req); err != nil {
-		c.JSON(http.StatusOK, gin.H{
-			"success": false,
-			"message": "无效的请求参数",
-		})
+		common.ApiErrorI18n(c, i18n.MsgInvalidParams)
 		return
 	}
 
@@ -120,26 +100,17 @@ func SMSLogin(c *gin.Context) {
 	code := strings.TrimSpace(req.Code)
 
 	if phone == "" || code == "" {
-		c.JSON(http.StatusOK, gin.H{
-			"success": false,
-			"message": "手机号和验证码不能为空",
-		})
+		common.ApiErrorI18n(c, i18n.MsgSMSPhoneOrCodeEmpty)
 		return
 	}
 
 	if !phoneRegex.MatchString(phone) {
-		c.JSON(http.StatusOK, gin.H{
-			"success": false,
-			"message": "手机号格式不正确",
-		})
+		common.ApiErrorI18n(c, i18n.MsgSMSInvalidPhone)
 		return
 	}
 
 	if !common.VerifyCodeWithKey(phone, code, common.SMSLoginPurpose) {
-		c.JSON(http.StatusOK, gin.H{
-			"success": false,
-			"message": "验证码错误或已过期",
-		})
+		common.ApiErrorI18n(c, i18n.MsgSMSCodeError)
 		return
 	}
 
@@ -147,18 +118,12 @@ func SMSLogin(c *gin.Context) {
 
 	user := model.User{Phone: phone}
 	if err := user.FillUserByPhone(); err != nil {
-		c.JSON(http.StatusOK, gin.H{
-			"success": false,
-			"message": "该手机号未注册",
-		})
+		common.ApiErrorI18n(c, i18n.MsgSMSPhoneNotRegistered)
 		return
 	}
 
 	if user.Status != common.UserStatusEnabled {
-		c.JSON(http.StatusOK, gin.H{
-			"success": false,
-			"message": "用户已被禁用",
-		})
+		common.ApiErrorI18n(c, i18n.MsgSMSUserDisabled)
 		return
 	}
 
@@ -172,10 +137,7 @@ func BindPhone(c *gin.Context) {
 		Code  string `json:"code"`
 	}
 	if err := json.NewDecoder(c.Request.Body).Decode(&req); err != nil {
-		c.JSON(http.StatusOK, gin.H{
-			"success": false,
-			"message": "无效的请求参数",
-		})
+		common.ApiErrorI18n(c, i18n.MsgInvalidParams)
 		return
 	}
 
@@ -183,28 +145,19 @@ func BindPhone(c *gin.Context) {
 	code := strings.TrimSpace(req.Code)
 
 	if !phoneRegex.MatchString(phone) || code == "" {
-		c.JSON(http.StatusOK, gin.H{
-			"success": false,
-			"message": "手机号或验证码无效",
-		})
+		common.ApiErrorI18n(c, i18n.MsgSMSPhoneOrCodeEmpty)
 		return
 	}
 
 	if !common.VerifyCodeWithKey(phone, code, common.SMSBindPurpose) {
-		c.JSON(http.StatusOK, gin.H{
-			"success": false,
-			"message": "验证码错误或已过期",
-		})
+		common.ApiErrorI18n(c, i18n.MsgSMSCodeError)
 		return
 	}
 	common.DeleteKey(phone, common.SMSBindPurpose)
 
 	userId := c.GetInt("id")
 	if model.IsPhoneAlreadyTaken(phone) {
-		c.JSON(http.StatusOK, gin.H{
-			"success": false,
-			"message": "该手机号已被其他账号绑定",
-		})
+		common.ApiErrorI18n(c, i18n.MsgSMSPhoneAlreadyBound)
 		return
 	}
 
@@ -216,6 +169,6 @@ func BindPhone(c *gin.Context) {
 
 	c.JSON(http.StatusOK, gin.H{
 		"success": true,
-		"message": "手机号绑定成功",
+		"message": i18n.T(c, i18n.MsgSMSBindSuccess),
 	})
 }

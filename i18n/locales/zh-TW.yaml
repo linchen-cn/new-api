@@ -103,6 +103,23 @@ user.telegram_id_empty: "Telegram id 為空！"
 user.telegram_not_bound: "該 Telegram 帳號未綁定"
 user.linux_do_id_empty: "Linux DO id 為空！"
 user.quota_change_zero: "額度變更量不能為0"
+user.phone_empty: "手機號為空！"
+user.phone_already_taken: "該手機號已被註冊"
+
+# SMS messages
+sms.not_enabled: "簡訊服務未啟用"
+sms.login_not_enabled: "簡訊登入未啟用"
+sms.invalid_phone: "手機號格式不正確"
+sms.phone_not_registered: "該手機號未註冊"
+sms.phone_already_bound: "該手機號已被其他帳號綁定"
+sms.code_error: "驗證碼錯誤或已過期"
+sms.code_sent: "驗證碼已發送"
+sms.send_failed: "發送簡訊失敗"
+sms.phone_or_code_empty: "手機號或驗證碼無效"
+sms.bind_success: "手機號綁定成功"
+sms.user_disabled: "用戶已被禁用"
+sms.service_not_enabled: "簡訊服務未啟用"
+sms.create_client_failed: "建立簡訊客戶端失敗"
 
 # Quota messages
 quota.negative: "額度不能為負數！"
