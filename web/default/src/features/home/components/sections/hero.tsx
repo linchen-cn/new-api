@@ -37,7 +37,7 @@ export function Hero(_props: HeroProps) {
       >
         {/* Background image */}
         <img
-          src='/home-bg.png'
+          src='https://www.free2walk.cn/free2cloud/public/home-bg.png'
           alt=''
           aria-hidden
           className='absolute inset-0 h-full w-full object-cover'
@@ -45,7 +45,7 @@ export function Hero(_props: HeroProps) {
 
         {/* AI icon - 660x660 at (1152, 240) */}
         <img
-          src='/home-ai-icon.png'
+          src='https://www.free2walk.cn/free2cloud/public/home-ai-icon.png'
           alt=''
           aria-hidden
           className='absolute object-contain'
@@ -59,7 +59,7 @@ export function Hero(_props: HeroProps) {
 
         {/* Logo - 284x284 at (860, 544) */}
         <img
-          src='/home-logo.png'
+          src='https://www.free2walk.cn/free2cloud/public/home-logo.png'
           alt=''
           aria-hidden
           className='absolute object-contain'
