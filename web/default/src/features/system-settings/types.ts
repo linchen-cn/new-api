@@ -163,6 +163,12 @@ export type AuthSettings = {
   'passkey.allow_insecure_origin': boolean
   'passkey.user_verification': 'required' | 'preferred' | 'discouraged'
   'passkey.attachment_preference': '' | 'platform' | 'cross-platform'
+  'aliyun_sms.enabled': boolean
+  'aliyun_sms.access_key_id': string
+  'aliyun_sms.access_secret': string
+  'aliyun_sms.sign_name': string
+  'aliyun_sms.template_code': string
+  'aliyun_sms.endpoint': string
 }
 
 export type ContentSettings = {

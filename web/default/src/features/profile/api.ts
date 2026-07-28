@@ -120,6 +120,19 @@ export async function bindEmail(
   return res.data
 }
 
+export async function sendPhoneSMSCode(phone: string): Promise<ApiResponse> {
+  const res = await api.post('/api/user/sms/send', { phone, purpose: 'bind' })
+  return res.data
+}
+
+export async function bindPhone(
+  phone: string,
+  code: string
+): Promise<ApiResponse> {
+  const res = await api.post('/api/user/phone/bind', { phone, code })
+  return res.data
+}
+
 /**
  * Bind WeChat account
  */

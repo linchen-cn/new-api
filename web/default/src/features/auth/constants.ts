@@ -56,6 +56,17 @@ export const otpFormSchema = z.object({
   otp: z.string().min(1, 'Please enter a code.'),
 })
 
+export const smsLoginFormSchema = z.object({
+  phone: z
+    .string()
+    .min(1, '请输入手机号')
+    .regex(/^1[3-9]\d{9}$/, '请输入正确的手机号'),
+  code: z
+    .string()
+    .min(1, '请输入验证码')
+    .length(6, '验证码为6位数字'),
+})
+
 // ============================================================================
 // Validation Constants
 // ============================================================================

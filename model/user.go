@@ -30,6 +30,7 @@ type User struct {
 	Role             int            `json:"role" gorm:"type:int;default:1"`   // admin, common
 	Status           int            `json:"status" gorm:"type:int;default:1"` // enabled, disabled
 	Email            string         `json:"email" gorm:"index" validate:"max=50"`
+	Phone            string         `json:"phone" gorm:"index" validate:"max=20"`
 	GitHubId         string         `json:"github_id" gorm:"column:github_id;index"`
 	DiscordId        string         `json:"discord_id" gorm:"column:discord_id;index"`
 	OidcId           string         `json:"oidc_id" gorm:"column:oidc_id;index"`
@@ -642,6 +643,14 @@ func (user *User) FillUserByEmail() error {
 	return nil
 }
 
+func (user *User) FillUserByPhone() error {
+	if user.Phone == "" {
+		return errors.New("手机号为空！")
+	}
+	DB.Where(User{Phone: user.Phone}).First(user)
+	return nil
+}
+
 func (user *User) FillUserByGitHubId() error {
 	if user.GitHubId == "" {
 		return errors.New("GitHub id 为空！")
@@ -695,6 +704,10 @@ func (user *User) FillUserByTelegramId() error {
 
 func IsEmailAlreadyTaken(email string) bool {
 	return DB.Unscoped().Where("email = ?", email).Find(&User{}).RowsAffected == 1
+}
+
+func IsPhoneAlreadyTaken(phone string) bool {
+	return DB.Unscoped().Where("phone = ?", phone).Find(&User{}).RowsAffected == 1
 }
 
 func IsWeChatIdAlreadyTaken(wechatId string) bool {

@@ -133,3 +133,34 @@ export async function bindEmail(
   })
   return res.data
 }
+
+// ----------------------------------------------------------------------------
+// SMS / Phone
+// ----------------------------------------------------------------------------
+
+// Send SMS verification code
+export async function sendSMSCode(
+  phone: string,
+  purpose?: 'login' | 'bind'
+): Promise<ApiResponse> {
+  const res = await api.post('/api/user/sms/send', { phone, purpose })
+  return res.data
+}
+
+// Login with phone number and SMS code
+export async function smsLogin(payload: {
+  phone: string
+  code: string
+}): Promise<LoginResponse> {
+  const res = await api.post<LoginResponse>('/api/user/login/sms', payload)
+  return res.data
+}
+
+// Bind phone to account
+export async function bindPhone(
+  phone: string,
+  code: string
+): Promise<ApiResponse> {
+  const res = await api.post('/api/user/phone/bind', { phone, code })
+  return res.data
+}

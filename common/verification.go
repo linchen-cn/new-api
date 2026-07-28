@@ -1,6 +1,7 @@
 package common
 
 import (
+	"math/rand"
 	"strings"
 	"sync"
 	"time"
@@ -16,6 +17,8 @@ type verificationValue struct {
 const (
 	EmailVerificationPurpose = "v"
 	PasswordResetPurpose     = "r"
+	SMSLoginPurpose          = "s"
+	SMSBindPurpose           = "sb"
 )
 
 var verificationMutex sync.Mutex
@@ -30,6 +33,18 @@ func GenerateVerificationCode(length int) string {
 		return code
 	}
 	return code[:length]
+}
+
+func GenerateNumericVerificationCode(length int) string {
+	if length <= 0 {
+		length = 6
+	}
+	const digits = "0123456789"
+	b := make([]byte, length)
+	for i := range b {
+		b[i] = digits[rand.Intn(len(digits))]
+	}
+	return string(b)
 }
 
 func RegisterVerificationCodeWithKey(key string, code string, purpose string) {

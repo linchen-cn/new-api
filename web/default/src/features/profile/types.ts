@@ -81,6 +81,8 @@ export interface UserProfile {
   telegram_id?: string
   /** LinuxDO ID (OAuth) */
   linux_do_id?: string
+  /** Phone number (for SMS login) */
+  phone?: string
 }
 
 /**

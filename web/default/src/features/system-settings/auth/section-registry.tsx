@@ -23,6 +23,7 @@ import { BotProtectionSection } from './bot-protection-section'
 import { CustomOAuthSection } from './custom-oauth/custom-oauth-section'
 import { OAuthSection } from './oauth-section'
 import { PasskeySection } from './passkey-section'
+import { SMSSection } from './sms-section'
 
 const AUTH_SECTIONS = [
   {
@@ -108,6 +109,22 @@ const AUTH_SECTIONS = [
           TurnstileCheckEnabled: settings.TurnstileCheckEnabled,
           TurnstileSiteKey: settings.TurnstileSiteKey,
           TurnstileSecretKey: settings.TurnstileSecretKey,
+        }}
+      />
+    ),
+  },
+  {
+    id: 'sms',
+    titleKey: 'SMS Authentication',
+    build: (settings: AuthSettings) => (
+      <SMSSection
+        defaultValues={{
+          'aliyun_sms.enabled': settings['aliyun_sms.enabled'],
+          'aliyun_sms.access_key_id': settings['aliyun_sms.access_key_id'],
+          'aliyun_sms.access_secret': settings['aliyun_sms.access_secret'],
+          'aliyun_sms.sign_name': settings['aliyun_sms.sign_name'],
+          'aliyun_sms.template_code': settings['aliyun_sms.template_code'],
+          'aliyun_sms.endpoint': settings['aliyun_sms.endpoint'],
         }}
       />
     ),
