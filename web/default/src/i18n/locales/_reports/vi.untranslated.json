@@ -1,0 +1,12 @@
+{
+  "Describe the image you want to generate...": "Describe the image you want to generate...",
+  "Describe the video you want to generate...": "Describe the video you want to generate...",
+  "Failed to read file": "Failed to read file",
+  "Please enter a prompt": "Please enter a prompt",
+  "Please select a model": "Please select a model",
+  "Failed to generate image": "Failed to generate image",
+  "Failed to submit video task": "Failed to submit video task",
+  "Video generation is asynchronous. After submitting, you will receive a task ID. The system will automatically poll for the result.": "Video generation is asynchronous. After submitting, you will receive a task ID. The system will automatically poll for the result.",
+  "Please enter a valid URL": "Please enter a valid URL",
+  "Failed to upload file": "Failed to upload file"
+}

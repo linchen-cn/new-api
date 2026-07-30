@@ -3861,12 +3861,12 @@
           "voice": {
             "type": "string",
             "enum": [
-              "alloy",
-              "echo",
-              "fable",
-              "onyx",
-              "nova",
-              "shimmer"
+              "Vivi",
+              "小何",
+              "云舟",
+              "小天",
+              "刘飞",
+              "Tina老师"
             ]
           },
           "response_format": {

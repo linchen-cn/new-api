@@ -17,9 +17,10 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 For commercial licensing, please contact support@quantumnous.com
 */
 import { useState, useRef, useEffect } from 'react'
-import { ExternalLink, Copy, Music } from 'lucide-react'
+import { ExternalLink, Copy, Music, Loader2 } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
 import { toast } from 'sonner'
+import { api } from '@/lib/api'
 import { Button } from '@/components/ui/button'
 import { ScrollArea } from '@/components/ui/scroll-area'
 import { Dialog } from '@/components/dialog'
@@ -56,18 +57,41 @@ function formatDuration(seconds?: number): string {
 function AudioClipCard({ clip }: { clip: AudioClip }) {
   const { t } = useTranslation()
   const [hasError, setHasError] = useState(false)
+  const [isLoading, setIsLoading] = useState(false)
+  const [blobUrl, setBlobUrl] = useState<string | null>(null)
   const audioRef = useRef<HTMLAudioElement>(null)
 
+  const audioUrl = clip.audio_url || ''
+
   useEffect(() => {
-    // eslint-disable-next-line react-hooks/set-state-in-effect
     setHasError(false)
-  }, [clip.audio_url])
+    setBlobUrl(null)
+    // For proxy URLs (e.g. /v1/videos/.../content), fetch with auth
+    // because <audio> elements don't send session cookies/headers
+    if (audioUrl && audioUrl.includes('/v1/videos/')) {
+      setIsLoading(true)
+      api.get(audioUrl, { responseType: 'blob' })
+        .then((res) => {
+          const url = URL.createObjectURL(res.data as Blob)
+          setBlobUrl(url)
+        })
+        .catch(() => setHasError(true))
+        .finally(() => setIsLoading(false))
+    }
+  }, [audioUrl])
+
+  // Cleanup blob URL on unmount
+  useEffect(() => {
+    return () => {
+      if (blobUrl) URL.revokeObjectURL(blobUrl)
+    }
+  }, [blobUrl])
 
   const title = clip.title || t('Untitled')
   const tags = clip.tags || clip.metadata?.tags || ''
   const duration = clip.duration || clip.metadata?.duration
   const imageUrl = clip.image_url || clip.image_large_url
-  const audioUrl = clip.audio_url
+  const playbackUrl = blobUrl || audioUrl
 
   if (!audioUrl) return null
 
@@ -127,10 +151,15 @@ function AudioClipCard({ clip }: { clip: AudioClip }) {
               {t('Copy Link')}
             </Button>
           </div>
+        ) : isLoading ? (
+          <div className='flex items-center gap-2 py-1'>
+            <Loader2 className='h-4 w-4 animate-spin text-muted-foreground' />
+            <span className='text-muted-foreground text-xs'>{t('Loading...')}</span>
+          </div>
         ) : (
           <audio
             ref={audioRef}
-            src={audioUrl}
+            src={playbackUrl}
             controls
             preload='none'
             onError={() => setHasError(true)}

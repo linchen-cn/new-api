@@ -109,6 +109,18 @@ func VideoProxy(c *gin.Context) {
 	case constant.ChannelTypeOpenAI, constant.ChannelTypeSora:
 		videoURL = fmt.Sprintf("%s/v1/videos/%s/content", baseURL, task.GetUpstreamTaskID())
 		req.Header.Set("Authorization", "Bearer "+channel.Key)
+	case constant.ChannelTypeVolcMusic:
+		// Parse VolcMusic query response from task.Data to extract audio URL
+		var qResp struct {
+			Result struct {
+				SongDetail struct {
+					AudioUrl string `json:"AudioUrl"`
+				} `json:"SongDetail"`
+			} `json:"Result"`
+		}
+		if err := common.Unmarshal(task.Data, &qResp); err == nil {
+			videoURL = qResp.Result.SongDetail.AudioUrl
+		}
 	default:
 		// Video URL is stored in PrivateData.ResultURL (fallback to FailReason for old data)
 		videoURL = task.GetResultURL()

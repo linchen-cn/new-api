@@ -35,6 +35,13 @@ export const MESSAGE_STATUS = {
 // API endpoints
 export const API_ENDPOINTS = {
   CHAT_COMPLETIONS: '/pg/chat/completions',
+  IMAGE_GENERATIONS: '/pg/images/generations',
+  IMAGE_EDITS: '/pg/images/edits',
+  VIDEO_GENERATIONS: '/pg/video/generations',
+  VIDEO_FETCH: (taskId: string) => `/pg/video/generations/${taskId}`,
+  AUDIO_SPEECH: '/pg/audio/speech',
+  PLAYGROUND_MODELS: '/pg/models',
+  UPLOAD: '/pg/upload',
   USER_MODELS: '/api/user/models',
   USER_GROUPS: '/api/user/self/groups',
 } as const
@@ -65,11 +72,43 @@ export const DEFAULT_PARAMETER_ENABLED: ParameterEnabled = {
   seed: false,
 }
 
+// Image generation default config
+export const DEFAULT_IMAGE_CONFIG = {
+  model: '',
+  group: 'default',
+  size: '1024x1024',
+  n: 1,
+  quality: '',
+}
+
+// Video generation default config
+export const DEFAULT_VIDEO_CONFIG = {
+  model: '',
+  group: 'default',
+  duration: 5,
+  size: '',
+}
+
+// Video task polling interval (ms)
+export const VIDEO_POLL_INTERVAL = 3000
+
+// Audio generation default config
+export const DEFAULT_AUDIO_CONFIG = {
+  model: '',
+  group: 'default',
+  voice: '',
+  speed: 1.0,
+  responseFormat: 'mp3',
+}
+
 // Storage keys
 export const STORAGE_KEYS = {
   CONFIG: 'playground_config',
   MESSAGES: 'playground_messages',
   PARAMETER_ENABLED: 'playground_parameter_enabled',
+  CREATION_TAB: 'creation_tab',
+  IMAGE_CONFIG: 'creation_image_config',
+  VIDEO_CONFIG: 'creation_video_config',
 } as const
 
 // Error messages

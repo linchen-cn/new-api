@@ -106,6 +106,13 @@ func (a *TaskAdaptor) ValidateRequestAndSetAction(c *gin.Context, info *relaycom
 			}
 		}
 	}
+	// Auto-detect from model name when metadata.type is not explicitly set
+	if musicType == musicTypeSong {
+		modelLower := strings.ToLower(req.Model)
+		if strings.Contains(modelLower, "bgm") {
+			musicType = musicTypeBGM
+		}
+	}
 	if musicType != musicTypeSong && musicType != musicTypeBGM {
 		return service.TaskErrorWrapperLocal(
 			fmt.Errorf("invalid metadata.type: %s, must be song or bgm", musicType),

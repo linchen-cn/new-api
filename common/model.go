@@ -16,6 +16,18 @@ var (
 		"prefix:imagen-",
 		"flux-",
 		"flux.1-",
+		"doubao-seedream",
+		"seedream",
+	}
+	VideoGenerationModels = []string{
+		"seedance",
+		"hailuo",
+		"kling-v",
+		"t2v-",
+		"i2v-",
+		"s2v-",
+		"sora",
+		"vidu",
 	}
 	OpenAITextModels = []string{
 		"gpt-",
@@ -23,6 +35,13 @@ var (
 		"o3",
 		"o4",
 		"chatgpt",
+	}
+	AudioGenerationModels = []string{
+		"seed-tts",
+		"seed-audio",
+		"volc_song",
+		"volc_bgm",
+		"volc_music",
 	}
 )
 
@@ -42,6 +61,26 @@ func IsImageGenerationModel(modelName string) bool {
 			return true
 		}
 		if strings.HasPrefix(m, "prefix:") && strings.HasPrefix(modelName, strings.TrimPrefix(m, "prefix:")) {
+			return true
+		}
+	}
+	return false
+}
+
+func IsVideoModel(modelName string) bool {
+	modelName = strings.ToLower(modelName)
+	for _, m := range VideoGenerationModels {
+		if strings.Contains(modelName, m) {
+			return true
+		}
+	}
+	return false
+}
+
+func IsAudioModel(modelName string) bool {
+	modelName = strings.ToLower(modelName)
+	for _, m := range AudioGenerationModels {
+		if strings.Contains(modelName, m) {
 			return true
 		}
 	}

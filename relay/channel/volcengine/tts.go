@@ -89,15 +89,6 @@ type VolcengineTTSAdditionInfo struct {
 	Duration string `json:"duration"`
 }
 
-var openAIToVolcengineVoiceMap = map[string]string{
-	"alloy":   "zh_male_M392_conversation_wvae_bigtts",
-	"echo":    "zh_male_wenhao_mars_bigtts",
-	"fable":   "zh_female_tianmei_mars_bigtts",
-	"onyx":    "zh_male_zhibei_mars_bigtts",
-	"nova":    "zh_female_shuangkuaisisi_mars_bigtts",
-	"shimmer": "zh_female_cancan_mars_bigtts",
-}
-
 var responseFormatToEncodingMap = map[string]string{
 	"mp3":  "mp3",
 	"opus": "ogg_opus",
@@ -113,13 +104,6 @@ func parseVolcengineAuth(apiKey string) (appID, token string, err error) {
 		return "", "", errors.New("invalid api key format, expected: appid|access_token")
 	}
 	return parts[0], parts[1], nil
-}
-
-func mapVoiceType(openAIVoice string) string {
-	if voice, ok := openAIToVolcengineVoiceMap[openAIVoice]; ok {
-		return voice
-	}
-	return openAIVoice
 }
 
 func mapEncoding(responseFormat string) string {

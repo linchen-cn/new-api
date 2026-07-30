@@ -364,6 +364,16 @@ func (a *TaskAdaptor) BuildRequestBody(c *gin.Context, info *relaycommon.RelayIn
 		return nil, errors.Wrap(err, "unmarshal_request_body_failed")
 	}
 
+	// Strip internal fields that should not be forwarded to the upstream API.
+	// "group" is a new-api routing field; "prompt"/"images"/"image" are
+	// redundant when "content" is present (they are already encoded in content).
+	delete(bodyMap, "group")
+	if _, hasContent := bodyMap["content"]; hasContent {
+		delete(bodyMap, "prompt")
+		delete(bodyMap, "images")
+		delete(bodyMap, "image")
+	}
+
 	if info.IsModelMapped {
 		bodyMap["model"] = info.UpstreamModelName
 	} else if modelStr, ok := bodyMap["model"].(string); ok && modelStr != "" {

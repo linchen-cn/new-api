@@ -21,7 +21,6 @@ import {
   Box,
   CreditCard,
   FileText,
-  FlaskConical,
   Key,
   LayoutDashboard,
   ListTodo,
@@ -29,6 +28,7 @@ import {
   Radio,
   ServerCog,
   Settings,
+  Sparkles,
   Ticket,
   User,
   Users,
@@ -54,9 +54,9 @@ export function useSidebarData(): SidebarData {
         title: t('Chat'),
         items: [
           {
-            title: t('Playground'),
+            title: t('Creation Center'),
             url: '/playground',
-            icon: FlaskConical,
+            icon: Sparkles,
           },
           {
             title: t('Chat'),

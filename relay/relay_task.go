@@ -471,7 +471,11 @@ func tryRealtimeFetch(task *model.Task, isOpenAIVideoAPI bool) []byte {
 	if strings.HasPrefix(ti.Url, "data:") {
 		// data: URI — kept in Data, not ResultURL
 	} else if ti.Url != "" {
-		task.PrivateData.ResultURL = ti.Url
+		if task.Platform == "62" {
+			task.PrivateData.ResultURL = taskcommon.BuildProxyURL(task.TaskID)
+		} else {
+			task.PrivateData.ResultURL = ti.Url
+		}
 	} else if task.Status == model.TaskStatusSuccess {
 		// No URL from adaptor — construct proxy URL using public task ID
 		task.PrivateData.ResultURL = taskcommon.BuildProxyURL(task.TaskID)
@@ -543,6 +547,12 @@ func mapTaskStatusToSimple(status model.TaskStatus) string {
 }
 
 func TaskModel2Dto(task *model.Task) *dto.TaskDto {
+	// For VolcMusic (platform "62"), always use proxy URL
+	// Direct VolcEngine URLs may have auth/CORS issues in the browser
+	resultURL := task.GetResultURL()
+	if string(task.Platform) == "62" && task.Status == model.TaskStatusSuccess {
+		resultURL = taskcommon.BuildProxyURL(task.TaskID)
+	}
 	return &dto.TaskDto{
 		ID:         task.ID,
 		CreatedAt:  task.CreatedAt,
@@ -556,7 +566,7 @@ func TaskModel2Dto(task *model.Task) *dto.TaskDto {
 		Action:     task.Action,
 		Status:     string(task.Status),
 		FailReason: task.FailReason,
-		ResultURL:  task.GetResultURL(),
+		ResultURL:  resultURL,
 		SubmitTime: task.SubmitTime,
 		StartTime:  task.StartTime,
 		FinishTime: task.FinishTime,

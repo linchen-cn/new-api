@@ -27,12 +27,13 @@ import { cn } from '@/lib/utils'
 import { Avatar, AvatarFallback } from '@/components/ui/avatar'
 import { StatusBadge } from '@/components/status-badge'
 import { TASK_ACTIONS, TASK_STATUS } from '../../constants'
-import { taskActionMapper, taskStatusMapper } from '../../lib/mappers'
+import { taskActionMapper, taskStatusMapper, taskPlatformMapper } from '../../lib/mappers'
 import type { TaskLog } from '../../types'
 import {
   AudioPreviewDialog,
   type AudioClip,
 } from '../dialogs/audio-preview-dialog'
+import { VideoPreviewDialog } from '../dialogs/video-preview-dialog'
 import { FailReasonDialog } from '../dialogs/fail-reason-dialog'
 import { useUsageLogsContext } from '../usage-logs-provider'
 import {
@@ -180,7 +181,12 @@ export function useTaskLogsColumns(isAdmin: boolean): ColumnDef<TaskLog>[] {
               className='border-border/60 bg-muted/30 !text-foreground max-w-full truncate rounded-md border px-1.5 py-0.5 font-mono'
             />
             <span className='text-muted-foreground/60 truncate text-[11px]'>
-              {t(log.platform)} · {t(taskActionMapper.getLabel(log.action))}
+              {t(taskPlatformMapper.getLabel(log.platform))} ·{' '}
+              {t(
+                log.platform === '62'
+                  ? 'Generate Music'
+                  : taskActionMapper.getLabel(log.action)
+              )}
             </span>
           </div>
         )
@@ -219,7 +225,10 @@ export function useTaskLogsColumns(isAdmin: boolean): ColumnDef<TaskLog>[] {
         const failReason = row.getValue('fail_reason') as string
         const status = log.status
         const [dialogOpen, setDialogOpen] = useState(false)
+        const [videoDialogOpen, setVideoDialogOpen] = useState(false)
+        const [audioDialogOpen, setAudioDialogOpen] = useState(false)
 
+        // Suno success: parse data for audio_url
         const isSunoSuccess =
           log.platform === 'suno' && status === TASK_STATUS.SUCCESS
         if (isSunoSuccess) {
@@ -236,25 +245,71 @@ export function useTaskLogsColumns(isAdmin: boolean): ColumnDef<TaskLog>[] {
           }
         }
 
+        const isSuccess = status === TASK_STATUS.SUCCESS
+        // Use result_url (new field) or fall back to fail_reason (historical compat)
+        const resultUrl = log.result_url || (isSuccess && failReason?.startsWith('http') ? failReason : '')
+
+        const isVolcMusic = log.platform === '62'
         const isVideoTask =
-          log.action === TASK_ACTIONS.GENERATE ||
+          !isVolcMusic &&
+          (log.action === TASK_ACTIONS.GENERATE ||
           log.action === TASK_ACTIONS.TEXT_GENERATE ||
           log.action === TASK_ACTIONS.FIRST_TAIL_GENERATE ||
           log.action === TASK_ACTIONS.REFERENCE_GENERATE ||
-          log.action === TASK_ACTIONS.REMIX_GENERATE
-        const isSuccess = status === TASK_STATUS.SUCCESS
-        const isUrl = failReason?.startsWith('http')
+          log.action === TASK_ACTIONS.REMIX_GENERATE)
+        const isMusicTask =
+          isVolcMusic ||
+          log.action === TASK_ACTIONS.MUSIC ||
+          log.action === TASK_ACTIONS.LYRICS
 
-        if (isSuccess && isVideoTask && isUrl) {
-          const videoUrl = `/v1/videos/${log.task_id}/content`
+        if (isSuccess && resultUrl) {
+          if (isVideoTask) {
+            return (
+              <>
+                <button
+                  type='button'
+                  className='text-xs text-blue-600 hover:underline dark:text-blue-400'
+                  onClick={() => setVideoDialogOpen(true)}
+                >
+                  {t('Click to preview')}
+                </button>
+                <VideoPreviewDialog
+                  open={videoDialogOpen}
+                  onOpenChange={setVideoDialogOpen}
+                  url={resultUrl}
+                />
+              </>
+            )
+          }
+          if (isMusicTask && log.platform !== 'suno') {
+            return (
+              <>
+                <button
+                  type='button'
+                  className='text-xs text-blue-600 hover:underline dark:text-blue-400'
+                  onClick={() => setAudioDialogOpen(true)}
+                >
+                  {t('Click to preview')}
+                </button>
+                <AudioPreviewDialog
+                  open={audioDialogOpen}
+                  onOpenChange={setAudioDialogOpen}
+                  clips={[
+                    { audio_url: resultUrl, title: log.task_id },
+                  ]}
+                />
+              </>
+            )
+          }
+          // Other successful tasks with a URL: show clickable link
           return (
             <a
-              href={videoUrl}
+              href={resultUrl}
               target='_blank'
               rel='noopener noreferrer'
-              className='text-foreground text-xs hover:underline'
+              className='text-xs text-blue-600 hover:underline dark:text-blue-400'
             >
-              {t('Click to preview video')}
+              {t('View result')}
             </a>
           )
         }
