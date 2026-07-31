@@ -43,8 +43,8 @@ function isVideoModel(types: EndpointType[]): boolean {
   return !hasText && !types.includes('audio-speech')
 }
 
-// Models that do not support 1080p resolution
-const NO_1080P_MODELS = ['Doubao-Seedance-2.0-fast', 'Doubao-Seedance-2.0-mini']
+// Models that do not support 1080p resolution (matched case-insensitively)
+const NO_1080P_MODELS = ['seedance-2.0-mini', 'seedance-2.0-fast']
 
 function supports1080p(modelName: string): boolean {
   const lower = modelName.toLowerCase()
