@@ -206,16 +206,10 @@ func GetRandomSatisfiedChannel(group string, model string, retry int, requestPat
 // Custom (type 58) channels are path-checked: they are kept only when one of their
 // configured routes matches requestPath. All other channel types always pass.
 // When requestPath is empty (non-relay callers) filtering is skipped.
-// Playground paths (/pg/...) are normalized to standard API paths (/v1/...)
-// so that channels configured for /v1/chat/completions also serve /pg/chat/completions.
 // Caller must hold channelSyncLock (read lock). The cached slice is never mutated.
 func filterChannelsByRequestPath(channels []int, requestPath string) []int {
 	if requestPath == "" || len(channels) == 0 {
 		return channels
-	}
-	// Normalize playground paths to standard API paths for channel selection
-	if strings.HasPrefix(requestPath, "/pg/") {
-		requestPath = "/v1/" + requestPath[4:]
 	}
 	filtered := make([]int, 0, len(channels))
 	for _, channelId := range channels {
