@@ -28,8 +28,27 @@ import type {
   VideoTaskState,
 } from '../types'
 
+const TEXT_ENDPOINT_TYPES: EndpointType[] = [
+  'openai',
+  'anthropic',
+  'gemini',
+  'openai-response',
+  'openai-response-compact',
+]
+
 function isVideoModel(types: EndpointType[]): boolean {
-  return types.includes('openai-video') && !types.includes('audio-speech')
+  if (!types.includes('openai-video')) return false
+  // Exclude chat models that happen to support video input (vision capability)
+  const hasText = types.some((t) => TEXT_ENDPOINT_TYPES.includes(t))
+  return !hasText && !types.includes('audio-speech')
+}
+
+// Models that do not support 1080p resolution
+const NO_1080P_MODELS = ['Doubao-Seedance-2.0-fast', 'Doubao-Seedance-2.0-mini']
+
+function supports1080p(modelName: string): boolean {
+  const lower = modelName.toLowerCase()
+  return !NO_1080P_MODELS.some((m) => lower.includes(m))
 }
 
 const PENDING_STATUSES = ['queued', 'in_progress', 'pending', 'running']
@@ -83,6 +102,13 @@ export function VideoGenTab() {
     const fallback = groups.find((g) => g.value === 'default')?.value ?? groups[0].value
     setGroup(fallback)
   }
+
+  // Reset resolution to 720p when switching to a model that doesn't support 1080p
+  useEffect(() => {
+    if (model && !supports1080p(model) && resolution === '1080p') {
+      setResolution('720p')
+    }
+  }, [model, resolution])
 
   const updateTask = useCallback((taskId: string, updates: Partial<VideoTaskState>) => {
     setTasks((prev) =>
@@ -416,7 +442,9 @@ export function VideoGenTab() {
           >
             <option value='480p'>480p</option>
             <option value='720p'>720p</option>
-            <option value='1080p'>1080p</option>
+            {model && supports1080p(model) && (
+              <option value='1080p'>1080p</option>
+            )}
           </select>
         </div>
         <Button
