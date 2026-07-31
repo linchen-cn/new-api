@@ -1224,6 +1224,7 @@
     "Define per-group rules to add, remove, or append selectable groups for specific user groups.": "为特定用户组定义按分组规则，以添加、移除或追加可选分组。",
     "Degraded performance recently": "近期性能有所下降",
     "Delete": "删除",
+    "Cannot delete the last conversation": "无法删除最后一个会话",
     "Delete (": "删除 (",
     "Delete {{count}} API key(s)?": "删除 {{count}} 个 API 密钥？",
     "Delete a runtime request header": "删除运行期请求头",

@@ -105,6 +105,8 @@ export const DEFAULT_AUDIO_CONFIG = {
 export const STORAGE_KEYS = {
   CONFIG: 'playground_config',
   MESSAGES: 'playground_messages',
+  CONVERSATIONS: 'playground_conversations',
+  ACTIVE_CONVERSATION: 'playground_active_conversation',
   PARAMETER_ENABLED: 'playground_parameter_enabled',
   CREATION_TAB: 'creation_tab',
   IMAGE_CONFIG: 'creation_image_config',

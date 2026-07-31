@@ -1224,6 +1224,7 @@
     "Define per-group rules to add, remove, or append selectable groups for specific user groups.": "Définir des règles par groupe pour ajouter, supprimer ou ajouter des groupes sélectionnables pour des groupes d'utilisateurs spécifiques.",
     "Degraded performance recently": "Performances dégradées récemment",
     "Delete": "Supprimer",
+    "Cannot delete the last conversation": "Impossible de supprimer la dernière conversation",
     "Delete (": "Supprimer (",
     "Delete {{count}} API key(s)?": "Supprimer {{count}} clé(s) API ?",
     "Delete a runtime request header": "Supprimer un en-tête de requête à l'exécution",

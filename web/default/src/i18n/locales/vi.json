@@ -1224,6 +1224,7 @@
     "Define per-group rules to add, remove, or append selectable groups for specific user groups.": "Định nghĩa quy tắc theo nhóm để thêm, xóa hoặc nối các nhóm có thể chọn cho các nhóm người dùng cụ thể.",
     "Degraded performance recently": "Hiệu năng gần đây bị giảm",
     "Delete": "Xóa",
+    "Cannot delete the last conversation": "Không thể xóa cuộc trò chuyện cuối cùng",
     "Delete (": "Xóa (",
     "Delete {{count}} API key(s)?": "Xóa {{count}} khóa API?",
     "Delete a runtime request header": "Xóa header yêu cầu runtime",

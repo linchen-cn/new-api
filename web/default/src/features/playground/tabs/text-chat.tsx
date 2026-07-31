@@ -2,8 +2,15 @@ import { useCallback, useEffect, useState } from 'react'
 import { useQuery } from '@tanstack/react-query'
 import { useTranslation } from 'react-i18next'
 import { toast } from 'sonner'
-import { SquarePenIcon } from 'lucide-react'
+import {
+  SquarePenIcon,
+  Trash2Icon,
+  PanelLeftIcon,
+  MessageSquareIcon,
+} from 'lucide-react'
 import { Button } from '@/components/ui/button'
+import { ScrollArea } from '@/components/ui/scroll-area'
+import { cn } from '@/lib/utils'
 import { getPlaygroundModels, getUserGroups } from '../api'
 import { PlaygroundChat } from '../components/playground-chat'
 import { PlaygroundInput } from '../components/playground-input'
@@ -36,11 +43,15 @@ export function TextChatTab() {
     messages,
     models,
     groups,
+    conversations,
+    activeConversationId,
     updateMessages,
     setModels,
     setGroups,
     updateConfig,
-    clearMessages,
+    createNewConversation,
+    switchToConversation,
+    deleteConversation,
   } = usePlaygroundState()
 
   const { sendChat, stopGeneration, isGenerating } = useChatHandler({
@@ -52,6 +63,7 @@ export function TextChatTab() {
   const [editingMessageKey, setEditingMessageKey] = useState<string | null>(
     null
   )
+  const [sidebarOpen, setSidebarOpen] = useState(true)
 
   const { data: modelsData, isLoading: isLoadingModels } = useQuery({
     queryKey: ['playground-models'],
@@ -178,49 +190,115 @@ export function TextChatTab() {
     updateMessages(newMessages)
   }
 
-  return (
-    <div className='relative flex size-full flex-col overflow-hidden'>
-      <div className='flex flex-1 flex-col overflow-hidden'>
-        <div className='mx-auto flex w-full max-w-4xl items-center justify-end px-4 pt-2'>
-          <Button
-            variant='ghost'
-            size='sm'
-            className='gap-1.5'
-            onClick={clearMessages}
-            disabled={isGenerating || messages.length === 0}
-          >
-            <SquarePenIcon size={14} />
-            {t('New Chat')}
-          </Button>
-        </div>
-        <PlaygroundChat
-          messages={messages}
-          onCopyMessage={() => {}}
-          onRegenerateMessage={handleRegenerateMessage}
-          onEditMessage={handleEditMessage}
-          onDeleteMessage={handleDeleteMessage}
-          isGenerating={isGenerating}
-          editingKey={editingMessageKey}
-          onCancelEdit={handleEditOpenChange}
-          onSaveEdit={(newContent) => applyEdit(newContent, false)}
-          onSaveEditAndSubmit={(newContent) => applyEdit(newContent, true)}
-        />
-      </div>
+  const handleDeleteConversation = (id: string, e: React.MouseEvent) => {
+    e.stopPropagation()
+    if (conversations.length <= 1) {
+      toast.warning(t('Cannot delete the last conversation'))
+      return
+    }
+    deleteConversation(id)
+  }
 
-      <div className='mx-auto w-full max-w-4xl'>
-        <PlaygroundInput
-          disabled={isGenerating}
-          groups={groups}
-          groupValue={config.group}
-          isGenerating={isGenerating}
-          isModelLoading={isLoadingModels}
-          modelValue={config.model}
-          models={models}
-          onGroupChange={(value) => updateConfig('group', value)}
-          onModelChange={(value) => updateConfig('model', value)}
-          onStop={stopGeneration}
-          onSubmit={handleSendMessage}
-        />
+  return (
+    <div className='relative flex size-full flex-row overflow-hidden'>
+      {/* Conversation sidebar */}
+      {sidebarOpen && (
+        <div className='flex w-60 shrink-0 flex-col border-r'>
+          <div className='p-2'>
+            <Button
+              variant='outline'
+              size='sm'
+              className='w-full justify-start gap-2'
+              onClick={createNewConversation}
+              disabled={isGenerating}
+            >
+              <SquarePenIcon size={14} />
+              {t('New Chat')}
+            </Button>
+          </div>
+          <ScrollArea className='flex-1'>
+            <div className='flex flex-col gap-0.5 px-2 pb-2'>
+              {conversations.map((conv) => (
+                <div
+                  key={conv.id}
+                  onClick={() => {
+                    if (isGenerating) return
+                    switchToConversation(conv.id)
+                  }}
+                  className={cn(
+                    'group flex items-center gap-2 rounded-lg px-2.5 py-2 text-sm transition-colors',
+                    isGenerating
+                      ? 'cursor-not-allowed opacity-50'
+                      : 'cursor-pointer hover:bg-accent',
+                    conv.id === activeConversationId && 'bg-accent'
+                  )}
+                >
+                  <MessageSquareIcon
+                    size={14}
+                    className='shrink-0 text-muted-foreground'
+                  />
+                  <span className='flex-1 truncate'>
+                    {conv.title || t('New Chat')}
+                  </span>
+                  <button
+                    onClick={(e) => handleDeleteConversation(conv.id, e)}
+                    className='shrink-0 opacity-0 transition-opacity group-hover:opacity-100'
+                    aria-label={t('Delete')}
+                  >
+                    <Trash2Icon
+                      size={14}
+                      className='text-muted-foreground hover:text-destructive'
+                    />
+                  </button>
+                </div>
+              ))}
+            </div>
+          </ScrollArea>
+        </div>
+      )}
+
+      {/* Main chat area */}
+      <div className='relative flex flex-1 flex-col overflow-hidden'>
+        <div className='flex flex-1 flex-col overflow-hidden'>
+          <div className='mx-auto flex w-full max-w-4xl items-center px-4 pt-2'>
+            <Button
+              variant='ghost'
+              size='icon'
+              className='size-7'
+              onClick={() => setSidebarOpen((v) => !v)}
+            >
+              <PanelLeftIcon size={16} />
+            </Button>
+          </div>
+          <PlaygroundChat
+            messages={messages}
+            onCopyMessage={() => {}}
+            onRegenerateMessage={handleRegenerateMessage}
+            onEditMessage={handleEditMessage}
+            onDeleteMessage={handleDeleteMessage}
+            isGenerating={isGenerating}
+            editingKey={editingMessageKey}
+            onCancelEdit={handleEditOpenChange}
+            onSaveEdit={(newContent) => applyEdit(newContent, false)}
+            onSaveEditAndSubmit={(newContent) => applyEdit(newContent, true)}
+          />
+        </div>
+
+        <div className='mx-auto w-full max-w-4xl'>
+          <PlaygroundInput
+            disabled={isGenerating}
+            groups={groups}
+            groupValue={config.group}
+            isGenerating={isGenerating}
+            isModelLoading={isLoadingModels}
+            modelValue={config.model}
+            models={models}
+            onGroupChange={(value) => updateConfig('group', value)}
+            onModelChange={(value) => updateConfig('model', value)}
+            onStop={stopGeneration}
+            onSubmit={handleSendMessage}
+          />
+        </div>
       </div>
     </div>
   )

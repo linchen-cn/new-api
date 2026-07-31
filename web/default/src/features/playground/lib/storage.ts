@@ -17,7 +17,12 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 For commercial licensing, please contact support@quantumnous.com
 */
 import { STORAGE_KEYS } from '../constants'
-import type { PlaygroundConfig, ParameterEnabled, Message } from '../types'
+import type {
+  PlaygroundConfig,
+  ParameterEnabled,
+  Message,
+  Conversation,
+} from '../types'
 import { sanitizeMessagesOnLoad } from './message-utils'
 
 /**
@@ -126,8 +131,95 @@ export function clearPlaygroundData(): void {
     localStorage.removeItem(STORAGE_KEYS.CONFIG)
     localStorage.removeItem(STORAGE_KEYS.PARAMETER_ENABLED)
     localStorage.removeItem(STORAGE_KEYS.MESSAGES)
+    localStorage.removeItem(STORAGE_KEYS.CONVERSATIONS)
+    localStorage.removeItem(STORAGE_KEYS.ACTIVE_CONVERSATION)
   } catch (error) {
     // eslint-disable-next-line no-console
     console.error('Failed to clear playground data:', error)
+  }
+}
+
+/**
+ * Load conversations from localStorage, migrating from old single-messages format
+ */
+export function loadConversations(): Conversation[] {
+  try {
+    const saved = localStorage.getItem(STORAGE_KEYS.CONVERSATIONS)
+    if (saved) {
+      const parsed: unknown = JSON.parse(saved)
+      if (Array.isArray(parsed)) {
+        return (parsed as Conversation[]).map((c) => ({
+          ...c,
+          messages: sanitizeMessagesOnLoad(c.messages || []),
+        }))
+      }
+    }
+    // Migrate from old single messages array
+    const oldMessages = loadMessages()
+    if (oldMessages && oldMessages.length > 0) {
+      const firstUserMsg = oldMessages.find((m) => m.from === 'user')
+      const title =
+        firstUserMsg?.versions?.[0]?.content?.slice(0, 40).trim() ||
+        'New Chat'
+      const conversation: Conversation = {
+        id: `conv-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
+        title,
+        messages: oldMessages,
+        createdAt: Date.now(),
+        updatedAt: Date.now(),
+      }
+      const conversations = [conversation]
+      saveConversations(conversations)
+      saveActiveConversationId(conversation.id)
+      return conversations
+    }
+  } catch (error) {
+    // eslint-disable-next-line no-console
+    console.error('Failed to load conversations:', error)
+  }
+  return []
+}
+
+/**
+ * Save conversations to localStorage
+ */
+export function saveConversations(conversations: Conversation[]): void {
+  try {
+    localStorage.setItem(
+      STORAGE_KEYS.CONVERSATIONS,
+      JSON.stringify(conversations)
+    )
+  } catch (error) {
+    // eslint-disable-next-line no-console
+    console.error('Failed to save conversations:', error)
+  }
+}
+
+/**
+ * Load active conversation ID from localStorage
+ */
+export function loadActiveConversationId(): string | null {
+  try {
+    return localStorage.getItem(STORAGE_KEYS.ACTIVE_CONVERSATION)
+  } catch (error) {
+    // eslint-disable-next-line no-console
+    console.error('Failed to load active conversation ID:', error)
+  }
+  return null
+}
+
+/**
+ * Save active conversation ID to localStorage
+ */
+export function saveActiveConversationId(id: string | null): void {
+  try {
+    if (id) {
+      localStorage.setItem(STORAGE_KEYS.ACTIVE_CONVERSATION, id)
+    } else {
+      localStorage.removeItem(STORAGE_KEYS.ACTIVE_CONVERSATION)
+    }
+  } catch (error) {
+    // eslint-disable-next-line no-console
+    console.error('Failed to save active conversation ID:', error)
   }
 }

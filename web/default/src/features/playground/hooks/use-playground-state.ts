@@ -16,15 +16,17 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 For commercial licensing, please contact support@quantumnous.com
 */
-import { useState, useCallback } from 'react'
+import { useState, useCallback, useEffect, useRef, useMemo } from 'react'
 import { DEFAULT_CONFIG, DEFAULT_PARAMETER_ENABLED } from '../constants'
 import {
   loadConfig,
   saveConfig,
   loadParameterEnabled,
   saveParameterEnabled,
-  loadMessages,
-  saveMessages,
+  loadConversations,
+  saveConversations,
+  loadActiveConversationId,
+  saveActiveConversationId,
 } from '../lib'
 import type {
   Message,
@@ -32,7 +34,18 @@ import type {
   ParameterEnabled,
   ModelOption,
   GroupOption,
+  Conversation,
 } from '../types'
+
+function createEmptyConversation(): Conversation {
+  return {
+    id: `conv-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
+    title: '',
+    messages: [],
+    createdAt: Date.now(),
+    updatedAt: Date.now(),
+  }
+}
 
 /**
  * Main state management hook for playground
@@ -51,9 +64,44 @@ export function usePlaygroundState() {
     }
   )
 
-  const [messages, setMessages] = useState<Message[]>(() => {
-    return loadMessages() || []
+  const [conversations, setConversations] = useState<Conversation[]>(() => {
+    return loadConversations()
   })
+
+  const [activeConversationId, setActiveConversationId] = useState<
+    string | null
+  >(() => loadActiveConversationId())
+
+  // Ref to keep activeConversationId accessible in stable callbacks
+  const activeConversationIdRef = useRef(activeConversationId)
+  useEffect(() => {
+    activeConversationIdRef.current = activeConversationId
+  }, [activeConversationId])
+
+  // Ensure there is always an active conversation
+  useEffect(() => {
+    if (conversations.length === 0) {
+      const newConv = createEmptyConversation()
+      setConversations([newConv])
+      setActiveConversationId(newConv.id)
+      saveConversations([newConv])
+      saveActiveConversationId(newConv.id)
+    } else if (
+      !activeConversationId ||
+      !conversations.some((c) => c.id === activeConversationId)
+    ) {
+      const firstId = conversations[0].id
+      setActiveConversationId(firstId)
+      saveActiveConversationId(firstId)
+    }
+  }, [conversations, activeConversationId])
+
+  // Derive messages from the active conversation
+  const messages = useMemo(() => {
+    return (
+      conversations.find((c) => c.id === activeConversationId)?.messages ?? []
+    )
+  }, [conversations, activeConversationId])
 
   const [models, setModels] = useState<ModelOption[]>([])
   const [groups, setGroups] = useState<GroupOption[]>([])
@@ -82,23 +130,67 @@ export function usePlaygroundState() {
     []
   )
 
-  // Update messages with automatic save
+  // Update messages in the active conversation (stable callback via ref)
   const updateMessages = useCallback(
     (updater: Message[] | ((prev: Message[]) => Message[])) => {
-      setMessages((prev) => {
-        const newMessages =
-          typeof updater === 'function' ? updater(prev) : updater
-        saveMessages(newMessages)
-        return newMessages
+      setConversations((prev) => {
+        const activeId = activeConversationIdRef.current
+        const newConversations = prev.map((c) => {
+          if (c.id !== activeId) return c
+          const newMessages =
+            typeof updater === 'function' ? updater(c.messages) : updater
+          // Auto-title from first user message
+          let title = c.title
+          if (!title && newMessages.length > 0) {
+            const firstUserMsg = newMessages.find((m) => m.from === 'user')
+            if (firstUserMsg?.versions?.[0]?.content) {
+              title = firstUserMsg.versions[0].content.slice(0, 40).trim()
+            }
+          }
+          return {
+            ...c,
+            messages: newMessages,
+            title,
+            updatedAt: Date.now(),
+          }
+        })
+        saveConversations(newConversations)
+        return newConversations
       })
     },
     []
   )
 
-  // Clear all messages
-  const clearMessages = useCallback(() => {
-    updateMessages([])
-  }, [updateMessages])
+  // Create a new empty conversation and switch to it
+  const createNewConversation = useCallback(() => {
+    const newConv = createEmptyConversation()
+    setConversations((prev) => {
+      const updated = [newConv, ...prev]
+      saveConversations(updated)
+      return updated
+    })
+    setActiveConversationId(newConv.id)
+    saveActiveConversationId(newConv.id)
+  }, [])
+
+  // Switch to an existing conversation
+  const switchToConversation = useCallback((id: string) => {
+    setActiveConversationId(id)
+    saveActiveConversationId(id)
+  }, [])
+
+  // Delete a conversation (the effect will pick a new active one)
+  const deleteConversation = useCallback((id: string) => {
+    setConversations((prev) => {
+      const filtered = prev.filter((c) => c.id !== id)
+      saveConversations(filtered)
+      return filtered
+    })
+    if (activeConversationIdRef.current === id) {
+      setActiveConversationId(null)
+      saveActiveConversationId(null)
+    }
+  }, [])
 
   // Reset config to defaults
   const resetConfig = useCallback(() => {
@@ -115,6 +207,8 @@ export function usePlaygroundState() {
     messages,
     models,
     groups,
+    conversations,
+    activeConversationId,
 
     // Setters
     setModels,
@@ -124,7 +218,9 @@ export function usePlaygroundState() {
     updateConfig,
     updateParameterEnabled,
     updateMessages,
-    clearMessages,
+    createNewConversation,
+    switchToConversation,
+    deleteConversation,
     resetConfig,
   }
 }

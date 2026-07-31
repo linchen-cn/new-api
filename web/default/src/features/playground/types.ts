@@ -42,6 +42,15 @@ export interface Message {
   errorCode?: string | null
 }
 
+// Conversation type for chat history
+export interface Conversation {
+  id: string
+  title: string
+  messages: Message[]
+  createdAt: number
+  updatedAt: number
+}
+
 // API payload types
 export interface ChatCompletionMessage {
   role: MessageRole

@@ -1224,6 +1224,7 @@
     "Define per-group rules to add, remove, or append selectable groups for specific user groups.": "Define per-group rules to add, remove, or append selectable groups for specific user groups.",
     "Degraded performance recently": "Degraded performance recently",
     "Delete": "Delete",
+    "Cannot delete the last conversation": "Cannot delete the last conversation",
     "Delete (": "Delete (",
     "Delete {{count}} API key(s)?": "Delete {{count}} API key(s)?",
     "Delete a runtime request header": "Delete a runtime request header",
