@@ -2,6 +2,8 @@ import { useCallback, useEffect, useState } from 'react'
 import { useQuery } from '@tanstack/react-query'
 import { useTranslation } from 'react-i18next'
 import { toast } from 'sonner'
+import { SquarePenIcon } from 'lucide-react'
+import { Button } from '@/components/ui/button'
 import { getPlaygroundModels, getUserGroups } from '../api'
 import { PlaygroundChat } from '../components/playground-chat'
 import { PlaygroundInput } from '../components/playground-input'
@@ -38,6 +40,7 @@ export function TextChatTab() {
     setModels,
     setGroups,
     updateConfig,
+    clearMessages,
   } = usePlaygroundState()
 
   const { sendChat, stopGeneration, isGenerating } = useChatHandler({
@@ -178,6 +181,18 @@ export function TextChatTab() {
   return (
     <div className='relative flex size-full flex-col overflow-hidden'>
       <div className='flex flex-1 flex-col overflow-hidden'>
+        <div className='mx-auto flex w-full max-w-4xl items-center justify-end px-4 pt-2'>
+          <Button
+            variant='ghost'
+            size='sm'
+            className='gap-1.5'
+            onClick={clearMessages}
+            disabled={isGenerating || messages.length === 0}
+          >
+            <SquarePenIcon size={14} />
+            {t('New Chat')}
+          </Button>
+        </div>
         <PlaygroundChat
           messages={messages}
           onCopyMessage={() => {}}

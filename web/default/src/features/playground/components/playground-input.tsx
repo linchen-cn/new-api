@@ -26,11 +26,6 @@ import {
   GlobeIcon,
   SendIcon,
   SquareIcon,
-  BarChartIcon,
-  BoxIcon,
-  NotepadTextIcon,
-  CodeSquareIcon,
-  GraduationCapIcon,
 } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
 import { toast } from 'sonner'
@@ -48,7 +43,6 @@ import {
   PromptInputTools,
   type PromptInputMessage,
 } from '@/components/ai-elements/prompt-input'
-import { Suggestion, Suggestions } from '@/components/ai-elements/suggestion'
 import { ModelGroupSelector } from '@/components/model-group-selector'
 import type { ModelOption, GroupOption } from '../types'
 
@@ -65,15 +59,6 @@ interface PlaygroundInputProps {
   groupValue: string
   onGroupChange: (value: string) => void
 }
-
-const suggestions = [
-  { icon: BarChartIcon, text: 'Analyze data', color: '#76d0eb' },
-  { icon: BoxIcon, text: 'Surprise me', color: '#76d0eb' },
-  { icon: NotepadTextIcon, text: 'Summarize text', color: '#ea8444' },
-  { icon: CodeSquareIcon, text: 'Code', color: '#6c71ff' },
-  { icon: GraduationCapIcon, text: 'Get advice', color: '#76d0eb' },
-  { icon: null, text: 'More' },
-]
 
 export function PlaygroundInput({
   onSubmit,
@@ -105,10 +90,6 @@ export function PlaygroundInput({
     toast.info(t('Feature in development'), {
       description: action,
     })
-  }
-
-  const handleSuggestionClick = (suggestion: string) => {
-    onSubmit(suggestion)
   }
 
   return (
@@ -218,22 +199,6 @@ export function PlaygroundInput({
           </div>
         </PromptInputFooter>
       </PromptInput>
-
-      <Suggestions>
-        {suggestions.map(({ icon: Icon, text, color }) => (
-          <Suggestion
-            className={`text-xs font-normal sm:text-sm ${
-              text === 'More' ? 'hidden sm:flex' : ''
-            }`}
-            key={text}
-            onClick={() => handleSuggestionClick(text)}
-            suggestion={text}
-          >
-            {Icon && <Icon size={16} style={{ color }} />}
-            {text}
-          </Suggestion>
-        ))}
-      </Suggestions>
     </div>
   )
 }

@@ -3951,6 +3951,7 @@
     "Selected when creating a token and used as the default billing group for API calls.": "トークン作成時に選択され、API 呼び出しのデフォルト課金グループとして使われます。",
     "Self-Use Mode": "セルフユースモード",
     "Send": "送信",
+    "New Chat": "新しいチャット",
     "Send a request": "リクエストを送信",
     "Send code": "コードを送信",
     "Send Code": "コードを送信",

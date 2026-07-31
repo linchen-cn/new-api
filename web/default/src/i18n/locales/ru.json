@@ -3951,6 +3951,7 @@
     "Selected when creating a token and used as the default billing group for API calls.": "Выбирается при создании токена и используется как группа тарификации по умолчанию для вызовов API.",
     "Self-Use Mode": "Режим самоиспользования",
     "Send": "Отправить",
+    "New Chat": "Новый чат",
     "Send a request": "Отправить запрос",
     "Send code": "Отправить код",
     "Send Code": "Отправить код",
