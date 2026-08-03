@@ -32,10 +32,10 @@ const IMAGE_SIZES = [
 
 // Seedream model-specific size configurations
 const SEEDREAM_SIZE_CONFIG = [
-  { pattern: '5-0-pro', sizes: ['1K', '1.5K', '2K'], defaultSize: '2K' },
-  { pattern: '5-0-lite', sizes: ['2K', '3K', '4K'], defaultSize: '2K' },
-  { pattern: '4-5', sizes: ['2K', '4K'], defaultSize: '2K' },
-  { pattern: '4-0', sizes: ['1K', '2K', '4K'], defaultSize: '2K' },
+  { pattern: '5.0-pro', sizes: ['1K', '1.5K', '2K'], defaultSize: '2K' },
+  { pattern: '5.0-lite', sizes: ['2K', '3K', '4K'], defaultSize: '2K' },
+  { pattern: '4.5', sizes: ['2K', '4K'], defaultSize: '2K' },
+  { pattern: '4.0', sizes: ['1K', '2K', '4K'], defaultSize: '2K' },
 ] as const
 
 function getModelSizes(modelName: string): { sizes: string[]; defaultSize: string } {
