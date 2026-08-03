@@ -31,6 +31,13 @@ export function AuthLayout({ children }: AuthLayoutProps) {
 
   return (
     <div className='relative grid h-svh max-w-none'>
+      {/* Background image */}
+      <img
+        src='https://www.free2walk.cn/free2cloud/public/home-bg.png'
+        alt=''
+        aria-hidden
+        className='absolute inset-0 h-full w-full object-cover'
+      />
       <Link
         to='/'
         className='absolute top-4 left-4 z-10 flex items-center gap-2 transition-opacity hover:opacity-80 sm:top-8 sm:left-8'
@@ -52,7 +59,7 @@ export function AuthLayout({ children }: AuthLayoutProps) {
           <h1 className='text-xl font-medium'>{systemName}</h1>
         )}
       </Link>
-      <div className='container flex items-center pt-16 sm:pt-0'>
+      <div className='relative z-10 container flex items-center pt-16 sm:pt-0'>
         <div className='mx-auto flex w-full flex-col justify-center space-y-2 px-4 py-8 sm:w-[480px] sm:p-8'>
           {children}
         </div>

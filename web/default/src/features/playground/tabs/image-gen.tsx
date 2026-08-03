@@ -20,7 +20,6 @@ import type {
   ModelOption,
   GroupOption,
   UploadedFile,
-  ImageGenerationResponse,
 } from '../types'
 
 const IMAGE_SIZES = [
@@ -30,6 +29,26 @@ const IMAGE_SIZES = [
   '768x768',
   '512x512',
 ]
+
+// Seedream model-specific size configurations
+const SEEDREAM_SIZE_CONFIG = [
+  { pattern: '5-0-pro', sizes: ['1K', '1.5K', '2K'], defaultSize: '2K' },
+  { pattern: '5-0-lite', sizes: ['2K', '3K', '4K'], defaultSize: '2K' },
+  { pattern: '4-5', sizes: ['2K', '4K'], defaultSize: '2K' },
+  { pattern: '4-0', sizes: ['1K', '2K', '4K'], defaultSize: '2K' },
+] as const
+
+function getModelSizes(modelName: string): { sizes: string[]; defaultSize: string } {
+  const name = modelName.toLowerCase()
+  if (name.includes('seedream')) {
+    for (const config of SEEDREAM_SIZE_CONFIG) {
+      if (name.includes(config.pattern)) {
+        return { sizes: [...config.sizes], defaultSize: config.defaultSize }
+      }
+    }
+  }
+  return { sizes: IMAGE_SIZES, defaultSize: DEFAULT_IMAGE_CONFIG.size }
+}
 
 function isImageModel(types: EndpointType[]): boolean {
   return types.includes('image-generation')
@@ -52,7 +71,7 @@ export function ImageGenTab() {
   const [results, setResults] = useState<ImageResult[]>([])
   const fileInputRef = useRef<HTMLInputElement>(null)
 
-  const { data: modelsData, isLoading: isLoadingModels } = useQuery({
+  const { data: modelsData } = useQuery({
     queryKey: ['playground-models'],
     queryFn: async () => {
       try {
@@ -89,9 +108,19 @@ export function ImageGenTab() {
     setGroup(fallback)
   }
 
+  const { sizes: availableSizes } = getModelSizes(model)
+
+  const handleModelChange = (newModel: string) => {
+    setModel(newModel)
+    const { sizes, defaultSize } = getModelSizes(newModel)
+    if (!sizes.includes(size)) {
+      setSize(defaultSize)
+    }
+  }
+
   const handleFileUpload = async (files: FileList | null) => {
     if (!files) return
-    for (const file of Array.from(files)) {
+    for (const file of files) {
       if (!file.type.startsWith('image/')) {
         toast.error(t('Only image files are supported'))
         continue
@@ -114,7 +143,7 @@ export function ImageGenTab() {
       } catch (err: unknown) {
         setUploadedFiles((prev) => prev.filter((f) => f.id !== fileId))
         const msg = err instanceof Error ? err.message : String(err)
-        toast.error(t('Failed to upload file') + ': ' + msg)
+        toast.error(`${t('Failed to upload file')}: ${msg}`)
       }
     }
   }
@@ -192,7 +221,7 @@ export function ImageGenTab() {
       <ModelGroupSelector
         selectedModel={model}
         models={models}
-        onModelChange={setModel}
+        onModelChange={handleModelChange}
         selectedGroup={group}
         groups={groups}
         onGroupChange={setGroup}
@@ -239,6 +268,7 @@ export function ImageGenTab() {
                 />
               )}
               <button
+                type='button'
                 onClick={() => removeFile(file.id)}
                 className='absolute right-0 top-0 rounded-bl-lg bg-black/60 p-1 text-white opacity-0 transition-opacity group-hover:opacity-100'
               >
@@ -247,6 +277,7 @@ export function ImageGenTab() {
             </div>
           ))}
           <button
+            type='button'
             onClick={() => fileInputRef.current?.click()}
             disabled={isGenerating}
             className='flex size-20 flex-col items-center justify-center gap-1 rounded-lg border border-dashed text-muted-foreground transition-colors hover:bg-muted'
@@ -272,7 +303,7 @@ export function ImageGenTab() {
             disabled={isGenerating}
             className='h-9 rounded-md border bg-background px-3 text-sm'
           >
-            {IMAGE_SIZES.map((s) => (
+            {availableSizes.map((s) => (
               <option key={s} value={s}>
                 {s}
               </option>
@@ -322,7 +353,7 @@ export function ImageGenTab() {
           <div className='grid grid-cols-2 gap-4 md:grid-cols-3'>
             {results.map((result, idx) => (
               <div
-                key={idx}
+                key={result.url}
                 className='group relative overflow-hidden rounded-lg border'
               >
                 <img

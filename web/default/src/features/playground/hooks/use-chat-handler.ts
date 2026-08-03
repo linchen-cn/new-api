@@ -28,7 +28,7 @@ import {
   finalizeMessage,
 } from '../lib'
 import type { Message, PlaygroundConfig, ParameterEnabled } from '../types'
-import { useStreamRequest } from './use-stream-request'
+import { useStreamRequest, type StreamUsage } from './use-stream-request'
 
 interface UseChatHandlerOptions {
   config: PlaygroundConfig
@@ -78,16 +78,23 @@ export function useChatHandler({
   )
 
   // Handle stream complete
-  const handleStreamComplete = useCallback(() => {
-    onMessageUpdate((prev) =>
-      updateLastAssistantMessage(prev, (message) =>
-        message.status === MESSAGE_STATUS.COMPLETE ||
-        message.status === MESSAGE_STATUS.ERROR
-          ? message
-          : { ...finalizeMessage(message), status: MESSAGE_STATUS.COMPLETE }
+  const handleStreamComplete = useCallback(
+    (usage?: StreamUsage) => {
+      onMessageUpdate((prev) =>
+        updateLastAssistantMessage(prev, (message) =>
+          message.status === MESSAGE_STATUS.COMPLETE ||
+          message.status === MESSAGE_STATUS.ERROR
+            ? message
+            : {
+                ...finalizeMessage(message),
+                status: MESSAGE_STATUS.COMPLETE,
+                usage,
+              }
+        )
       )
-    )
-  }, [onMessageUpdate])
+    },
+    [onMessageUpdate]
+  )
 
   // Handle stream error
   const handleStreamError = useCallback(
@@ -154,6 +161,7 @@ export function useChatHandler({
               choice.message?.reasoning_content
             ),
             status: MESSAGE_STATUS.COMPLETE,
+            usage: response.usage,
           }))
         )
       } catch (error: unknown) {

@@ -22,18 +22,25 @@ import { getCommonHeaders } from '@/lib/api'
 import { API_ENDPOINTS, ERROR_MESSAGES } from '../constants'
 import type { ChatCompletionRequest, ChatCompletionChunk } from '../types'
 
+export type StreamUsage = {
+  prompt_tokens: number
+  completion_tokens: number
+  total_tokens: number
+}
+
 /**
  * Hook for handling streaming chat completion requests
  */
 export function useStreamRequest() {
   const sseSourceRef = useRef<SSE | null>(null)
   const isStreamCompleteRef = useRef(false)
+  const usageRef = useRef<StreamUsage | null>(null)
 
   const sendStreamRequest = useCallback(
     (
       payload: ChatCompletionRequest,
       onUpdate: (type: 'reasoning' | 'content', chunk: string) => void,
-      onComplete: () => void,
+      onComplete: (usage?: StreamUsage) => void,
       onError: (error: string, errorCode?: string) => void
     ) => {
       const source = new SSE(API_ENDPOINTS.CHAT_COMPLETIONS, {
@@ -44,6 +51,7 @@ export function useStreamRequest() {
 
       sseSourceRef.current = source
       isStreamCompleteRef.current = false
+      usageRef.current = null
 
       const closeSource = () => {
         source.close()
@@ -61,13 +69,22 @@ export function useStreamRequest() {
         if (e.data === '[DONE]') {
           isStreamCompleteRef.current = true
           closeSource()
-          onComplete()
+          onComplete(usageRef.current ?? undefined)
           return
         }
 
         try {
           const chunk: ChatCompletionChunk = JSON.parse(e.data)
           const delta = chunk.choices?.[0]?.delta
+
+          // Capture usage from the final chunk
+          if (chunk.usage) {
+            usageRef.current = {
+              prompt_tokens: chunk.usage.prompt_tokens,
+              completion_tokens: chunk.usage.completion_tokens,
+              total_tokens: chunk.usage.total_tokens,
+            }
+          }
 
           if (delta) {
             if (delta.reasoning_content) {

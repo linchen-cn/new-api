@@ -40,6 +40,11 @@ export interface Message {
   isContentComplete?: boolean
   status?: MessageStatus
   errorCode?: string | null
+  usage?: {
+    prompt_tokens: number
+    completion_tokens: number
+    total_tokens: number
+  }
 }
 
 // Conversation type for chat history
@@ -92,6 +97,11 @@ export interface ChatCompletionChunk {
     }
     finish_reason: string | null
   }>
+  usage?: {
+    prompt_tokens: number
+    completion_tokens: number
+    total_tokens: number
+  }
 }
 
 export interface ChatCompletionResponse {

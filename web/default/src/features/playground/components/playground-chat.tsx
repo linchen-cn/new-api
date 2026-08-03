@@ -17,6 +17,7 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 For commercial licensing, please contact support@quantumnous.com
 */
 import { useEffect, useMemo, useState } from 'react'
+import { useTranslation } from 'react-i18next'
 import { cn } from '@/lib/utils'
 import { Button } from '@/components/ui/button'
 import { Textarea } from '@/components/ui/textarea'
@@ -80,6 +81,7 @@ export function PlaygroundChat({
   onCancelEdit,
   onSaveEditAndSubmit,
 }: PlaygroundChatProps) {
+  const { t } = useTranslation()
   const [editText, setEditText] = useState('')
   const [originalText, setOriginalText] = useState('')
 
@@ -258,6 +260,15 @@ export function PlaygroundChat({
                                         >
                                           <Response>{displayContent}</Response>
                                         </MessageContent>
+                                        {isAssistant && message.usage && (
+                                          <div className='mt-2 flex items-center gap-2 border-t pt-2 text-xs text-muted-foreground'>
+                                            <span>
+                                              {t('Prompt')}: {message.usage.prompt_tokens} ·{' '}
+                                              {t('Completion')}: {message.usage.completion_tokens} ·{' '}
+                                              {t('Total')}: {message.usage.total_tokens} tokens
+                                            </span>
+                                          </div>
+                                        )}
                                         {actions}
                                       </>
                                     )

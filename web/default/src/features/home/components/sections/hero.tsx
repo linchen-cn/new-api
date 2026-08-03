@@ -30,9 +30,68 @@ export function Hero(_props: HeroProps) {
 
   return (
     <section className='relative w-full overflow-hidden bg-white'>
-      {/* Container with 1920:1080 aspect ratio - scales proportionally */}
+      {/* Mobile layout - flex column with natural flow */}
+      <div className='relative flex flex-col px-6 py-16 md:hidden'>
+        {/* Background image */}
+        <img
+          src='https://www.free2walk.cn/free2cloud/public/home-bg.png'
+          alt=''
+          aria-hidden
+          className='absolute inset-0 h-full w-full object-cover'
+        />
+        <div className='relative z-10 flex flex-col'>
+          <div className='mb-6 flex justify-center'>
+            <span
+              className='rounded-full border px-4 py-1.5 text-xs font-medium whitespace-nowrap'
+              style={{
+                backgroundColor: 'rgba(215, 236, 255, 0.5)',
+                borderColor: 'rgb(193, 220, 255)',
+                color: 'rgb(22, 93, 252)',
+              }}
+            >
+              {t('AI Application Infrastructure Foundation')}
+            </span>
+          </div>
+          <h1
+            className='text-2xl font-bold leading-tight'
+            style={{ color: 'rgb(7, 7, 7)' }}
+          >
+            {t('Unified API Gateway for')}
+          </h1>
+          <h2 className='text-2xl font-bold leading-tight'>
+            <span
+              style={{
+                background:
+                  'linear-gradient(to right, rgb(87, 161, 255), rgb(163, 134, 255) 48%, rgb(173, 74, 255))',
+                WebkitBackgroundClip: 'text',
+                backgroundClip: 'text',
+                WebkitTextFillColor: 'transparent',
+              }}
+            >
+              {t('Vast Range of AI Models')}
+            </span>
+          </h2>
+          <p className='mt-4 text-sm leading-relaxed text-gray-600'>
+            {t(
+              'Access a vast selection of models via a standard, unified API protocol. Power AI applications, manage digital assets, and connect the Future.'
+            )}
+          </p>
+          <div className='mt-8'>
+            <Link
+              to='/dashboard'
+              className='inline-flex items-center gap-1.5 rounded-2xl px-6 py-3 text-white transition-opacity hover:opacity-85'
+              style={{ backgroundColor: 'rgb(7, 7, 7)' }}
+            >
+              <span className='text-sm font-medium'>{t('Get Started')}</span>
+              <ArrowRight className='size-4' />
+            </Link>
+          </div>
+        </div>
+      </div>
+
+      {/* Desktop layout - absolute positioning with aspect ratio */}
       <div
-        className='relative w-full'
+        className='relative hidden w-full md:block'
         style={{ aspectRatio: '1920 / 1080' }}
       >
         {/* Background image */}
