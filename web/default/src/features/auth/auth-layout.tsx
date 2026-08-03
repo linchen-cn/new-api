@@ -60,7 +60,7 @@ export function AuthLayout({ children }: AuthLayoutProps) {
         )}
       </Link>
       <div className='relative z-10 container flex items-center pt-16 sm:pt-0'>
-        <div className='mx-auto flex w-full flex-col justify-center space-y-2 px-4 py-8 sm:w-[480px] sm:p-8'>
+        <div className='mx-auto flex w-full flex-col justify-center space-y-2 rounded-2xl bg-white/80 px-4 py-8 shadow-lg backdrop-blur-sm sm:w-[480px] sm:p-8'>
           {children}
         </div>
       </div>
