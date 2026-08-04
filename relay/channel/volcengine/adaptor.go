@@ -314,6 +314,38 @@ func (a *Adaptor) ConvertOpenAIRequest(c *gin.Context, info *relaycommon.RelayIn
 		request.Model = info.UpstreamModelName
 		request.THINKING = json.RawMessage(`{"type": "enabled"}`)
 	}
+
+	// Volcengine Chat API expects raw base64 in input_audio.data, but some
+	// clients send a data URL (data:audio/mpeg;base64,...). Strip the prefix
+	// so the upstream API receives clean base64 data.
+	for i := range request.Messages {
+		msg := &request.Messages[i]
+		if msg.IsStringContent() {
+			continue
+		}
+		contents := msg.ParseContent()
+		modified := false
+		for j := range contents {
+			if contents[j].Type != dto.ContentTypeInputAudio {
+				continue
+			}
+			audio := contents[j].GetInputAudio()
+			if audio == nil || audio.Data == "" {
+				continue
+			}
+			if stripped, ok := stripDataURLPrefix(audio.Data); ok {
+				contents[j].InputAudio = &dto.MessageInputAudio{
+					Data:   stripped,
+					Format: audio.Format,
+				}
+				modified = true
+			}
+		}
+		if modified {
+			msg.SetMediaContent(contents)
+		}
+	}
+
 	return request, nil
 }
 
@@ -399,4 +431,18 @@ func (a *Adaptor) GetModelList() []string {
 
 func (a *Adaptor) GetChannelName() string {
 	return ChannelName
+}
+
+// stripDataURLPrefix removes the "data:{mime_type};base64," prefix from s if
+// present, returning the raw base64 data and true. If s is not a data URL, it
+// returns s unchanged and false.
+func stripDataURLPrefix(s string) (string, bool) {
+	if !strings.HasPrefix(s, "data:") {
+		return s, false
+	}
+	idx := strings.Index(s, ",")
+	if idx == -1 {
+		return s, false
+	}
+	return s[idx+1:], true
 }
