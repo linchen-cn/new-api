@@ -180,11 +180,13 @@ export async function submitVideoTask(
     prompt: payload.prompt,
   }
 
-  // Only include content array when images are provided (for Seedance-style APIs)
+  // Always build the Seedance-style content array (upstream requires it);
+  // text-only generation sends just the text item, images become
+  // reference_image entries.
+  const content: Array<Record<string, unknown>> = [
+    { type: 'text', text: payload.prompt },
+  ]
   if (payload.images && payload.images.length > 0) {
-    const content: Array<Record<string, unknown>> = [
-      { type: 'text', text: payload.prompt },
-    ]
     for (const url of payload.images) {
       content.push({
         type: 'image_url',
@@ -192,18 +194,14 @@ export async function submitVideoTask(
         role: 'reference_image',
       })
     }
-    body.content = content
   } else if (payload.image) {
-    const content: Array<Record<string, unknown>> = [
-      { type: 'text', text: payload.prompt },
-      {
-        type: 'image_url',
-        image_url: { url: payload.image },
-        role: 'reference_image',
-      },
-    ]
-    body.content = content
+    content.push({
+      type: 'image_url',
+      image_url: { url: payload.image },
+      role: 'reference_image',
+    })
   }
+  body.content = content
 
   // Only include duration when explicitly set
   if (payload.duration != null && payload.duration > 0) {

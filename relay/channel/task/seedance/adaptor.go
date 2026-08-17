@@ -365,14 +365,25 @@ func (a *TaskAdaptor) BuildRequestBody(c *gin.Context, info *relaycommon.RelayIn
 	}
 
 	// Strip internal fields that should not be forwarded to the upstream API.
-	// "group" is a new-api routing field; "prompt"/"images"/"image" are
-	// redundant when "content" is present (they are already encoded in content).
+	// "group" is a new-api routing field.
 	delete(bodyMap, "group")
-	if _, hasContent := bodyMap["content"]; hasContent {
-		delete(bodyMap, "prompt")
-		delete(bodyMap, "images")
-		delete(bodyMap, "image")
+
+	// VolcEngine Seedance requires the "content" array; a bare "prompt" field
+	// is rejected with 400. When the client does not send "content" (e.g.
+	// text-only generation without reference images), synthesize it from the
+	// top-level prompt/image fields. Requests that already carry "content"
+	// (with roles like first_frame/last_frame/reference_image/reference_video)
+	// are forwarded unchanged.
+	if _, hasContent := bodyMap["content"]; !hasContent {
+		if content := buildSeedanceContent(bodyMap); len(content) > 0 {
+			bodyMap["content"] = content
+		}
 	}
+	// "prompt"/"images"/"image" are new-api convenience fields, redundant once
+	// the Seedance-style "content" array is present.
+	delete(bodyMap, "prompt")
+	delete(bodyMap, "images")
+	delete(bodyMap, "image")
 
 	if info.IsModelMapped {
 		bodyMap["model"] = info.UpstreamModelName
@@ -386,6 +397,39 @@ func (a *TaskAdaptor) BuildRequestBody(c *gin.Context, info *relaycommon.RelayIn
 	}
 	common.SysLog(fmt.Sprintf("[seedance] upstream request body: %s", string(data)))
 	return bytes.NewReader(data), nil
+}
+
+// buildSeedanceContent 从顶层 prompt/images 字段构建 Seedance content 数组。
+// 文本作为 {type:"text"} 条目，图片作为 {type:"image_url", role:"reference_image"} 条目。
+func buildSeedanceContent(bodyMap map[string]interface{}) []map[string]interface{} {
+	var content []map[string]interface{}
+	if prompt, ok := bodyMap["prompt"].(string); ok && strings.TrimSpace(prompt) != "" {
+		content = append(content, map[string]interface{}{
+			"type": "text",
+			"text": prompt,
+		})
+	}
+	appendImage := func(url string) {
+		if url == "" {
+			return
+		}
+		content = append(content, map[string]interface{}{
+			"type":      "image_url",
+			"image_url": map[string]interface{}{"url": url},
+			"role":      "reference_image",
+		})
+	}
+	if images, ok := bodyMap["images"].([]interface{}); ok {
+		for _, img := range images {
+			if url, ok := img.(string); ok {
+				appendImage(url)
+			}
+		}
+	}
+	if image, ok := bodyMap["image"].(string); ok {
+		appendImage(image)
+	}
+	return content
 }
 
 func (a *TaskAdaptor) DoRequest(c *gin.Context, info *relaycommon.RelayInfo, requestBody io.Reader) (*http.Response, error) {
