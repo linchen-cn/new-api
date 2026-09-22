@@ -74,6 +74,10 @@ type SubscriptionFunding struct {
 	amount         int64 // 预扣的订阅额度（subConsume）
 	subscriptionId int
 	preConsumed    int64
+	// Window anchors captured at pre-consume; passed to tiered delta so
+	// session/weekly counters are only adjusted while the window has not rolled.
+	sessionWindowStart int64
+	weekNextResetTime  int64
 	// 以下字段在 PreConsume 成功后填充，供 RelayInfo 同步使用
 	AmountTotal     int64
 	AmountUsedAfter int64
@@ -93,6 +97,8 @@ func (s *SubscriptionFunding) PreConsume(_ int) error {
 	s.preConsumed = res.PreConsumed
 	s.AmountTotal = res.AmountTotal
 	s.AmountUsedAfter = res.AmountUsedAfter
+	s.sessionWindowStart = res.SessionWindowStart
+	s.weekNextResetTime = res.WeekNextResetTime
 	// 获取订阅计划信息
 	if planInfo, err := model.GetSubscriptionPlanInfoByUserSubscriptionId(res.UserSubscriptionId); err == nil && planInfo != nil {
 		s.PlanId = planInfo.PlanId
@@ -105,7 +111,8 @@ func (s *SubscriptionFunding) Settle(delta int) error {
 	if delta == 0 {
 		return nil
 	}
-	return model.PostConsumeUserSubscriptionDelta(s.subscriptionId, int64(delta))
+	return model.PostConsumeUserSubscriptionTieredDelta(s.subscriptionId, int64(delta),
+		s.sessionWindowStart, s.weekNextResetTime)
 }
 
 func (s *SubscriptionFunding) Refund() error {

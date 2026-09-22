@@ -163,11 +163,25 @@ export function useSubscriptionsColumns(): ColumnDef<PlanRecord>[] {
         header: t('Plan Quota'),
         meta: { mobileHidden: true },
         cell: ({ row }) => {
-          const total = Number(row.original.plan.total_amount || 0)
+          const plan = row.original.plan
+          const total = Number(plan.total_amount || 0)
           return (
-            <span className='text-muted-foreground'>
-              {total > 0 ? formatQuota(total) : t('Unlimited')}
-            </span>
+            <div className='text-muted-foreground'>
+              <span>{total > 0 ? formatQuota(total) : t('Unlimited')}</span>
+              {plan.tiered_limit_enabled ? (
+                <div className='text-xs'>
+                  {t('Session')}{' '}
+                  {Number(plan.session_limit_amount || 0) > 0
+                    ? formatQuota(Number(plan.session_limit_amount))
+                    : t('Unlimited')}
+                  {' / '}
+                  {t('Weekly')}{' '}
+                  {Number(plan.weekly_limit_amount || 0) > 0
+                    ? formatQuota(Number(plan.weekly_limit_amount))
+                    : t('Unlimited')}
+                </div>
+              ) : null}
+            </div>
           )
         },
         size: 150,

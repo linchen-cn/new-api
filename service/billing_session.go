@@ -1,10 +1,12 @@
 package service
 
 import (
+	"errors"
 	"fmt"
 	"net/http"
 	"strings"
 	"sync"
+	"time"
 
 	"github.com/QuantumNous/new-api/common"
 	"github.com/QuantumNous/new-api/logger"
@@ -15,6 +17,23 @@ import (
 	"github.com/bytedance/gopkg/util/gopool"
 	"github.com/gin-gonic/gin"
 )
+
+// subscriptionTierLimitAPIError maps a tiered-limit exhausted error (session/weekly window)
+// to a 429 response with the window reset time hint.
+func subscriptionTierLimitAPIError(tierErr *model.TierExhaustedError) *types.NewAPIError {
+	tierName := "会话"
+	if tierErr.Tier == model.SubscriptionTierWeekly {
+		tierName = "每周"
+	}
+	msg := fmt.Sprintf("%s额度已用尽，将于 %s 恢复", tierName, time.Unix(tierErr.ResetAt, 0).Format("2006-01-02 15:04:05"))
+	return types.NewErrorWithStatusCode(
+		errors.New(msg),
+		types.ErrorCodeSubscriptionTierExhausted,
+		http.StatusTooManyRequests,
+		types.ErrOptionWithSkipRetry(),
+		types.ErrOptionWithNoRecordErrorLog(),
+	)
+}
 
 // ---------------------------------------------------------------------------
 // BillingSession — 统一计费会话
@@ -109,7 +128,11 @@ func (s *BillingSession) Refund(c *gin.Context) {
 			common.SysLog("error refunding billing source: " + err.Error())
 		}
 		if extraReserved > 0 && funding.Source() == BillingSourceSubscription && subscriptionId > 0 {
-			if err := model.PostConsumeUserSubscriptionDelta(subscriptionId, -int64(extraReserved)); err != nil {
+			var sessAnchor, weekAnchor int64
+			if subFunding, ok := funding.(*SubscriptionFunding); ok {
+				sessAnchor, weekAnchor = subFunding.sessionWindowStart, subFunding.weekNextResetTime
+			}
+			if err := model.PostConsumeUserSubscriptionTieredDelta(subscriptionId, -int64(extraReserved), sessAnchor, weekAnchor); err != nil {
 				common.SysLog("error refunding subscription extra reserved quota: " + err.Error())
 			}
 		}
@@ -213,6 +236,10 @@ func (s *BillingSession) preConsume(c *gin.Context, quota int) *types.NewAPIErro
 			}
 			s.tokenConsumed = 0
 		}
+		var tierErr *model.TierExhaustedError
+		if errors.As(err, &tierErr) {
+			return subscriptionTierLimitAPIError(tierErr)
+		}
 		// TODO: model 层应定义哨兵错误（如 ErrNoActiveSubscription），用 errors.Is 替代字符串匹配
 		errMsg := err.Error()
 		if strings.Contains(errMsg, "no active subscription") || strings.Contains(errMsg, "subscription quota insufficient") {
@@ -238,7 +265,12 @@ func (s *BillingSession) reserveFunding(delta int) error {
 		funding.consumed += delta
 		return nil
 	case *SubscriptionFunding:
-		if err := model.PostConsumeUserSubscriptionDelta(funding.subscriptionId, int64(delta)); err != nil {
+		if err := model.PostConsumeUserSubscriptionTieredDelta(funding.subscriptionId, int64(delta),
+			funding.sessionWindowStart, funding.weekNextResetTime); err != nil {
+			var tierErr *model.TierExhaustedError
+			if errors.As(err, &tierErr) {
+				return subscriptionTierLimitAPIError(tierErr)
+			}
 			return types.NewErrorWithStatusCode(
 				fmt.Errorf("订阅额度不足或未配置订阅: %s", err.Error()),
 				types.ErrorCodeInsufficientUserQuota,
@@ -262,7 +294,8 @@ func (s *BillingSession) rollbackFundingReserve(delta int) {
 			funding.consumed -= delta
 		}
 	case *SubscriptionFunding:
-		if err := model.PostConsumeUserSubscriptionDelta(funding.subscriptionId, -int64(delta)); err != nil {
+		if err := model.PostConsumeUserSubscriptionTieredDelta(funding.subscriptionId, -int64(delta),
+			funding.sessionWindowStart, funding.weekNextResetTime); err != nil {
 			common.SysLog("error rolling back subscription funding reserve: " + err.Error())
 		}
 	}

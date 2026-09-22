@@ -39,6 +39,10 @@ export const subscriptionPlanSchema = z.object({
   allow_wallet_overflow: z.boolean().optional().default(true),
   max_purchase_per_user: z.number(),
   total_amount: z.number(),
+  tiered_limit_enabled: z.boolean().optional().default(false),
+  session_limit_amount: z.number().optional().default(0),
+  session_window_seconds: z.number().optional().default(18000),
+  weekly_limit_amount: z.number().optional().default(0),
   upgrade_group: z.string().optional(),
   downgrade_group: z.string().optional(),
   stripe_price_id: z.string().optional(),
@@ -67,12 +71,34 @@ export const userSubscriptionSchema = z.object({
   amount_total: z.number(),
   amount_used: z.number(),
   next_reset_time: z.number().optional(),
+  tiered_limit_enabled: z.boolean().optional().default(false),
+  session_limit_amount: z.number().optional().default(0),
+  session_window_seconds: z.number().optional().default(18000),
+  weekly_limit_amount: z.number().optional().default(0),
+  session_used: z.number().optional().default(0),
+  session_window_start: z.number().optional().default(0),
+  weekly_used: z.number().optional().default(0),
+  week_next_reset_time: z.number().optional().default(0),
 })
 
 export type UserSubscription = z.infer<typeof userSubscriptionSchema>
 
+// Effective usage of the three limit tiers, computed by the backend (read-only).
+export interface SubscriptionTieredUsage {
+  session_limit: number
+  session_used: number
+  session_reset_at: number
+  weekly_limit: number
+  weekly_used: number
+  weekly_reset_at: number
+  monthly_limit: number
+  monthly_used: number
+  monthly_reset_at: number
+}
+
 export interface UserSubscriptionRecord {
   subscription: UserSubscription
+  tiered_usage?: SubscriptionTieredUsage | null
 }
 
 // ============================================================================

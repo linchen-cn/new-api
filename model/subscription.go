@@ -33,6 +33,12 @@ const (
 	SubscriptionResetCustom  = "custom"
 )
 
+// Tiered limit tiers
+const (
+	SubscriptionTierSession = "session"
+	SubscriptionTierWeekly  = "weekly"
+)
+
 var (
 	ErrSubscriptionOrderNotFound      = errors.New("subscription order not found")
 	ErrSubscriptionOrderStatusInvalid = errors.New("subscription order status invalid")
@@ -185,6 +191,13 @@ type SubscriptionPlan struct {
 	QuotaResetPeriod        string `json:"quota_reset_period" gorm:"type:varchar(16);default:'never'"`
 	QuotaResetCustomSeconds int64  `json:"quota_reset_custom_seconds" gorm:"type:bigint;default:0"`
 
+	// Tiered limit mode (session/weekly/monthly, like Volcano Ark coding plan).
+	// When enabled, QuotaResetPeriod is forced to monthly and TotalAmount acts as the monthly tier limit.
+	TieredLimitEnabled   bool  `json:"tiered_limit_enabled" gorm:"default:false"`
+	SessionLimitAmount   int64 `json:"session_limit_amount" gorm:"type:bigint;default:0"`   // session tier limit, 0 = unlimited
+	SessionWindowSeconds int64 `json:"session_window_seconds" gorm:"type:bigint;default:18000"` // session window duration, default 5h
+	WeeklyLimitAmount    int64 `json:"weekly_limit_amount" gorm:"type:bigint;default:0"`     // weekly tier limit, 0 = unlimited
+
 	CreatedAt int64 `json:"created_at" gorm:"bigint"`
 	UpdatedAt int64 `json:"updated_at" gorm:"bigint"`
 }
@@ -276,6 +289,20 @@ type UserSubscription struct {
 	// Whether wallet fallback is allowed after this subscription's quota is exhausted (snapshot from plan)
 	AllowWalletOverflow bool `json:"allow_wallet_overflow"`
 
+	// Tiered limit snapshot (copied from plan at creation)
+	TieredLimitEnabled   bool  `json:"tiered_limit_enabled" gorm:"default:false"`
+	SessionLimitAmount   int64 `json:"session_limit_amount" gorm:"type:bigint;default:0"`
+	SessionWindowSeconds int64 `json:"session_window_seconds" gorm:"type:bigint;default:18000"`
+	WeeklyLimitAmount    int64 `json:"weekly_limit_amount" gorm:"type:bigint;default:0"`
+
+	// Session tier counters (SessionWindowStart == 0 means no session started yet)
+	SessionUsed        int64 `json:"session_used" gorm:"type:bigint;default:0"`
+	SessionWindowStart int64 `json:"session_window_start" gorm:"type:bigint;default:0"`
+
+	// Weekly tier counters (WeekNextResetTime == 0 means not initialized, set on first use)
+	WeeklyUsed        int64 `json:"weekly_used" gorm:"type:bigint;default:0"`
+	WeekNextResetTime int64 `json:"week_next_reset_time" gorm:"type:bigint;default:0"`
+
 	CreatedAt int64 `json:"created_at" gorm:"bigint"`
 	UpdatedAt int64 `json:"updated_at" gorm:"bigint"`
 }
@@ -294,6 +321,47 @@ func (s *UserSubscription) BeforeUpdate(tx *gorm.DB) error {
 
 type SubscriptionSummary struct {
 	Subscription *UserSubscription `json:"subscription"`
+	// TieredUsage is non-nil only for tiered-limit subscriptions;
+	// session/weekly windows are virtually advanced to the current time (read-only).
+	TieredUsage *SubscriptionTieredUsage `json:"tiered_usage,omitempty"`
+}
+
+// SubscriptionTieredUsage reports the effective usage of the three limit tiers.
+// ResetAt values are unix timestamps; 0 means unknown/not applicable.
+type SubscriptionTieredUsage struct {
+	SessionLimit   int64 `json:"session_limit"`
+	SessionUsed    int64 `json:"session_used"`
+	SessionResetAt int64 `json:"session_reset_at"`
+	WeeklyLimit    int64 `json:"weekly_limit"`
+	WeeklyUsed     int64 `json:"weekly_used"`
+	WeeklyResetAt  int64 `json:"weekly_reset_at"`
+	MonthlyLimit   int64 `json:"monthly_limit"`
+	MonthlyUsed    int64 `json:"monthly_used"`
+	MonthlyResetAt int64 `json:"monthly_reset_at"`
+}
+
+func computeTieredUsage(sub *UserSubscription, nowUnix int64) *SubscriptionTieredUsage {
+	if sub == nil || !sub.TieredLimitEnabled {
+		return nil
+	}
+	window := sub.SessionWindowSeconds
+	if window <= 0 {
+		window = 18000
+	}
+	virt := *sub
+	advanceSessionWindow(&virt, nowUnix)
+	advanceWeeklyWindow(&virt, nowUnix)
+	return &SubscriptionTieredUsage{
+		SessionLimit:   virt.SessionLimitAmount,
+		SessionUsed:    virt.SessionUsed,
+		SessionResetAt: virt.SessionWindowStart + window,
+		WeeklyLimit:    virt.WeeklyLimitAmount,
+		WeeklyUsed:     virt.WeeklyUsed,
+		WeeklyResetAt:  virt.WeekNextResetTime,
+		MonthlyLimit:   virt.AmountTotal,
+		MonthlyUsed:    virt.AmountUsed,
+		MonthlyResetAt: virt.NextResetTime,
+	}
 }
 
 func calcPlanEndTime(start time.Time, plan *SubscriptionPlan) (int64, error) {
@@ -370,6 +438,51 @@ func calcNextResetTime(base time.Time, plan *SubscriptionPlan, endUnix int64) in
 		return 0
 	}
 	return next.Unix()
+}
+
+// nextWeeklyResetUnix returns the next Monday 00:00 after base.
+func nextWeeklyResetUnix(base time.Time) int64 {
+	weekday := int(base.Weekday()) // Sunday=0
+	if weekday == 0 {
+		weekday = 7
+	}
+	daysUntil := 8 - weekday
+	next := time.Date(base.Year(), base.Month(), base.Day(), 0, 0, 0, 0, base.Location()).
+		AddDate(0, 0, daysUntil)
+	return next.Unix()
+}
+
+// advanceSessionWindow lazily advances the session tier window on sub.
+// A zero SessionWindowStart anchors the window at now (first request);
+// an expired window is re-anchored at now with usage cleared.
+func advanceSessionWindow(sub *UserSubscription, nowUnix int64) {
+	window := sub.SessionWindowSeconds
+	if window <= 0 {
+		window = 18000
+	}
+	if sub.SessionWindowStart == 0 {
+		sub.SessionWindowStart = nowUnix
+		sub.SessionUsed = 0
+		return
+	}
+	if nowUnix >= sub.SessionWindowStart+window {
+		sub.SessionWindowStart = nowUnix
+		sub.SessionUsed = 0
+	}
+}
+
+// advanceWeeklyWindow lazily advances the weekly tier window on sub,
+// aligned to Monday 00:00 in the server timezone.
+func advanceWeeklyWindow(sub *UserSubscription, nowUnix int64) {
+	now := time.Unix(nowUnix, 0)
+	if sub.WeekNextResetTime == 0 {
+		sub.WeekNextResetTime = nextWeeklyResetUnix(now)
+		return
+	}
+	for nowUnix >= sub.WeekNextResetTime {
+		sub.WeeklyUsed = 0
+		sub.WeekNextResetTime = nextWeeklyResetUnix(time.Unix(sub.WeekNextResetTime, 0))
+	}
 }
 
 func GetSubscriptionPlanById(id int) (*SubscriptionPlan, error) {
@@ -523,6 +636,10 @@ func CreateUserSubscriptionFromPlanTx(tx *gorm.DB, userId int, plan *Subscriptio
 	if plan.AllowWalletOverflow != nil {
 		allowWalletOverflow = *plan.AllowWalletOverflow
 	}
+	sessionWindowSeconds := plan.SessionWindowSeconds
+	if sessionWindowSeconds <= 0 {
+		sessionWindowSeconds = 18000
+	}
 	sub := &UserSubscription{
 		UserId:              userId,
 		PlanId:              plan.Id,
@@ -538,8 +655,12 @@ func CreateUserSubscriptionFromPlanTx(tx *gorm.DB, userId int, plan *Subscriptio
 		PrevUserGroup:       prevGroup,
 		DowngradeGroup:      strings.TrimSpace(plan.DowngradeGroup),
 		AllowWalletOverflow: allowWalletOverflow,
-		CreatedAt:           common.GetTimestamp(),
-		UpdatedAt:           common.GetTimestamp(),
+		TieredLimitEnabled:   plan.TieredLimitEnabled,
+		SessionLimitAmount:   plan.SessionLimitAmount,
+		SessionWindowSeconds: sessionWindowSeconds,
+		WeeklyLimitAmount:    plan.WeeklyLimitAmount,
+		CreatedAt:            common.GetTimestamp(),
+		UpdatedAt:            common.GetTimestamp(),
 	}
 	if err := tx.Create(sub).Error; err != nil {
 		return nil, err
@@ -878,11 +999,13 @@ func buildSubscriptionSummaries(subs []UserSubscription) []SubscriptionSummary {
 	if len(subs) == 0 {
 		return []SubscriptionSummary{}
 	}
+	now := GetDBTimestamp()
 	result := make([]SubscriptionSummary, 0, len(subs))
 	for _, sub := range subs {
 		subCopy := sub
 		result = append(result, SubscriptionSummary{
 			Subscription: &subCopy,
+			TieredUsage:  computeTieredUsage(&subCopy, now),
 		})
 	}
 	return result
@@ -980,6 +1103,10 @@ type SubscriptionPreConsumeResult struct {
 	AmountTotal        int64
 	AmountUsedBefore   int64
 	AmountUsedAfter    int64
+	// Window anchors at pre-consume time; used by settle/reserve/refund to
+	// decide whether session/weekly counters should still be adjusted.
+	SessionWindowStart int64
+	WeekNextResetTime  int64
 }
 
 // ExpireDueSubscriptions marks expired subscriptions and handles group downgrade.
@@ -1080,6 +1207,17 @@ func ExpireDueSubscriptions(limit int) (int, error) {
 	return expiredCount, nil
 }
 
+// TierExhaustedError indicates a tiered-limit window (session/weekly) is exhausted.
+// The service layer maps it to HTTP 429 with the reset time hint.
+type TierExhaustedError struct {
+	Tier    string // SubscriptionTierSession / SubscriptionTierWeekly
+	ResetAt int64  // unix timestamp when the window recovers
+}
+
+func (e *TierExhaustedError) Error() string {
+	return fmt.Sprintf("%s tier exhausted, resets at %d", e.Tier, e.ResetAt)
+}
+
 // SubscriptionPreConsumeRecord stores idempotent pre-consume operations per request.
 type SubscriptionPreConsumeRecord struct {
 	Id                 int    `json:"id"`
@@ -1088,8 +1226,12 @@ type SubscriptionPreConsumeRecord struct {
 	UserSubscriptionId int    `json:"user_subscription_id" gorm:"index"`
 	PreConsumed        int64  `json:"pre_consumed" gorm:"type:bigint;not null;default:0"`
 	Status             string `json:"status" gorm:"type:varchar(32);index"` // consumed/refunded
-	CreatedAt          int64  `json:"created_at" gorm:"bigint"`
-	UpdatedAt          int64  `json:"updated_at" gorm:"bigint;index"`
+	// Window anchors captured at pre-consume time. When refunding, a tier whose
+	// anchor has rolled on the subscription is not credited back.
+	SessionWindowStart int64 `json:"session_window_start" gorm:"type:bigint;default:0"`
+	WeekNextResetTime  int64 `json:"week_next_reset_time" gorm:"type:bigint;default:0"`
+	CreatedAt          int64 `json:"created_at" gorm:"bigint"`
+	UpdatedAt          int64 `json:"updated_at" gorm:"bigint;index"`
 }
 
 func (r *SubscriptionPreConsumeRecord) BeforeCreate(tx *gorm.DB) error {
@@ -1174,6 +1316,8 @@ func PreConsumeUserSubscription(requestId string, userId int, modelName string, 
 			returnValue.AmountTotal = sub.AmountTotal
 			returnValue.AmountUsedBefore = sub.AmountUsed
 			returnValue.AmountUsedAfter = sub.AmountUsed
+			returnValue.SessionWindowStart = existing.SessionWindowStart
+			returnValue.WeekNextResetTime = existing.WeekNextResetTime
 			return nil
 		}
 
@@ -1187,6 +1331,7 @@ func PreConsumeUserSubscription(requestId string, userId int, modelName string, 
 		if len(subs) == 0 {
 			return errors.New("no active subscription")
 		}
+		var tierErr *TierExhaustedError
 		for _, candidate := range subs {
 			sub := candidate
 			plan, err := getSubscriptionPlanByIdTx(tx, sub.PlanId)
@@ -1195,6 +1340,26 @@ func PreConsumeUserSubscription(requestId string, userId int, modelName string, 
 			}
 			if err := maybeResetUserSubscriptionWithPlanTx(tx, &sub, plan, now); err != nil {
 				return err
+			}
+			if sub.TieredLimitEnabled {
+				advanceSessionWindow(&sub, now)
+				advanceWeeklyWindow(&sub, now)
+				if sub.SessionLimitAmount > 0 && sub.SessionLimitAmount-sub.SessionUsed < amount {
+					if tierErr == nil {
+						window := sub.SessionWindowSeconds
+						if window <= 0 {
+							window = 18000
+						}
+						tierErr = &TierExhaustedError{Tier: SubscriptionTierSession, ResetAt: sub.SessionWindowStart + window}
+					}
+					continue
+				}
+				if sub.WeeklyLimitAmount > 0 && sub.WeeklyLimitAmount-sub.WeeklyUsed < amount {
+					if tierErr == nil {
+						tierErr = &TierExhaustedError{Tier: SubscriptionTierWeekly, ResetAt: sub.WeekNextResetTime}
+					}
+					continue
+				}
 			}
 			usedBefore := sub.AmountUsed
 			if sub.AmountTotal > 0 {
@@ -1209,6 +1374,8 @@ func PreConsumeUserSubscription(requestId string, userId int, modelName string, 
 				UserSubscriptionId: sub.Id,
 				PreConsumed:        amount,
 				Status:             "consumed",
+				SessionWindowStart: sub.SessionWindowStart,
+				WeekNextResetTime:  sub.WeekNextResetTime,
 			}
 			if err := tx.Create(record).Error; err != nil {
 				var dup SubscriptionPreConsumeRecord
@@ -1221,11 +1388,17 @@ func PreConsumeUserSubscription(requestId string, userId int, modelName string, 
 					returnValue.AmountTotal = sub.AmountTotal
 					returnValue.AmountUsedBefore = sub.AmountUsed
 					returnValue.AmountUsedAfter = sub.AmountUsed
+					returnValue.SessionWindowStart = dup.SessionWindowStart
+					returnValue.WeekNextResetTime = dup.WeekNextResetTime
 					return nil
 				}
 				return err
 			}
 			sub.AmountUsed += amount
+			if sub.TieredLimitEnabled {
+				sub.SessionUsed += amount
+				sub.WeeklyUsed += amount
+			}
 			if err := tx.Save(&sub).Error; err != nil {
 				return err
 			}
@@ -1234,7 +1407,12 @@ func PreConsumeUserSubscription(requestId string, userId int, modelName string, 
 			returnValue.AmountTotal = sub.AmountTotal
 			returnValue.AmountUsedBefore = usedBefore
 			returnValue.AmountUsedAfter = sub.AmountUsed
+			returnValue.SessionWindowStart = sub.SessionWindowStart
+			returnValue.WeekNextResetTime = sub.WeekNextResetTime
 			return nil
+		}
+		if tierErr != nil {
+			return tierErr
 		}
 		return fmt.Errorf("subscription quota insufficient, need=%d", amount)
 	})
@@ -1249,6 +1427,9 @@ func RefundSubscriptionPreConsume(requestId string) error {
 	if strings.TrimSpace(requestId) == "" {
 		return errors.New("requestId is empty")
 	}
+	// DB time must be read before opening the transaction; an in-tx query would
+	// require a second connection and can deadlock under constrained pools.
+	now := GetDBTimestamp()
 	return DB.Transaction(func(tx *gorm.DB) error {
 		var record SubscriptionPreConsumeRecord
 		if err := tx.Set("gorm:query_option", "FOR UPDATE").
@@ -1262,7 +1443,8 @@ func RefundSubscriptionPreConsume(requestId string) error {
 			record.Status = "refunded"
 			return tx.Save(&record).Error
 		}
-		if err := PostConsumeUserSubscriptionDelta(record.UserSubscriptionId, -record.PreConsumed); err != nil {
+		if err := postConsumeUserSubscriptionDeltaTx(tx, record.UserSubscriptionId, -record.PreConsumed,
+			record.SessionWindowStart, record.WeekNextResetTime, now); err != nil {
 			return err
 		}
 		record.Status = "refunded"
@@ -1353,28 +1535,90 @@ func GetSubscriptionPlanInfoByUserSubscriptionId(userSubscriptionId int) (*Subsc
 }
 
 // Update subscription used amount by delta (positive consume more, negative refund).
+// Legacy entry without window anchors: session/weekly counters are not adjusted.
 func PostConsumeUserSubscriptionDelta(userSubscriptionId int, delta int64) error {
+	return PostConsumeUserSubscriptionTieredDelta(userSubscriptionId, delta, 0, 0)
+}
+
+// PostConsumeUserSubscriptionTieredDelta adjusts the subscription by delta.
+// The monthly amount is always adjusted. For tiered subscriptions the session/weekly
+// counters are adjusted only when the given anchors still match the subscription's
+// current window (i.e. the window has not rolled since pre-consume); a rolled window
+// is not credited back. Positive deltas validate all tiers and may return *TierExhaustedError.
+func PostConsumeUserSubscriptionTieredDelta(userSubscriptionId int, delta int64, sessionAnchor, weekAnchor int64) error {
 	if userSubscriptionId <= 0 {
 		return errors.New("invalid userSubscriptionId")
 	}
 	if delta == 0 {
 		return nil
 	}
+	// DB time must be read before opening the transaction; an in-tx query would
+	// require a second connection and can deadlock under constrained pools.
+	now := GetDBTimestamp()
 	return DB.Transaction(func(tx *gorm.DB) error {
-		var sub UserSubscription
-		if err := tx.Set("gorm:query_option", "FOR UPDATE").
-			Where("id = ?", userSubscriptionId).
-			First(&sub).Error; err != nil {
-			return err
-		}
-		newUsed := sub.AmountUsed + delta
-		if newUsed < 0 {
-			newUsed = 0
-		}
-		if sub.AmountTotal > 0 && newUsed > sub.AmountTotal {
-			return fmt.Errorf("subscription used exceeds total, used=%d total=%d", newUsed, sub.AmountTotal)
-		}
-		sub.AmountUsed = newUsed
-		return tx.Save(&sub).Error
+		return postConsumeUserSubscriptionDeltaTx(tx, userSubscriptionId, delta, sessionAnchor, weekAnchor, now)
 	})
+}
+
+func postConsumeUserSubscriptionDeltaTx(tx *gorm.DB, userSubscriptionId int, delta int64, sessionAnchor, weekAnchor int64, nowUnix int64) error {
+	if tx == nil {
+		return errors.New("tx is nil")
+	}
+	if userSubscriptionId <= 0 {
+		return errors.New("invalid userSubscriptionId")
+	}
+	if delta == 0 {
+		return nil
+	}
+	var sub UserSubscription
+	if err := tx.Set("gorm:query_option", "FOR UPDATE").
+		Where("id = ?", userSubscriptionId).
+		First(&sub).Error; err != nil {
+		return err
+	}
+	newUsed := sub.AmountUsed + delta
+	if newUsed < 0 {
+		newUsed = 0
+	}
+	if sub.AmountTotal > 0 && newUsed > sub.AmountTotal {
+		return fmt.Errorf("subscription used exceeds total, used=%d total=%d", newUsed, sub.AmountTotal)
+	}
+	sub.AmountUsed = newUsed
+
+	if sub.TieredLimitEnabled {
+		if delta > 0 {
+			// Validate tiers before applying; only tiers whose window is still
+			// anchored to the request's window can be charged.
+			if sessionAnchor > 0 && sub.SessionWindowStart == sessionAnchor &&
+				sub.SessionLimitAmount > 0 && sub.SessionLimitAmount-sub.SessionUsed < delta {
+				window := sub.SessionWindowSeconds
+				if window <= 0 {
+					window = 18000
+				}
+				return &TierExhaustedError{Tier: SubscriptionTierSession, ResetAt: sub.SessionWindowStart + window}
+			}
+			if weekAnchor > 0 && sub.WeekNextResetTime == weekAnchor &&
+				sub.WeeklyLimitAmount > 0 && sub.WeeklyLimitAmount-sub.WeeklyUsed < delta {
+				return &TierExhaustedError{Tier: SubscriptionTierWeekly, ResetAt: sub.WeekNextResetTime}
+			}
+		}
+		// Keep counters fresh for display even when the request anchors rolled.
+		advanceSessionWindow(&sub, nowUnix)
+		advanceWeeklyWindow(&sub, nowUnix)
+		if sessionAnchor > 0 && sub.SessionWindowStart == sessionAnchor {
+			newSession := sub.SessionUsed + delta
+			if newSession < 0 {
+				newSession = 0
+			}
+			sub.SessionUsed = newSession
+		}
+		if weekAnchor > 0 && sub.WeekNextResetTime == weekAnchor {
+			newWeekly := sub.WeeklyUsed + delta
+			if newWeekly < 0 {
+				newWeekly = 0
+			}
+			sub.WeeklyUsed = newWeekly
+		}
+	}
+	return tx.Save(&sub).Error
 }

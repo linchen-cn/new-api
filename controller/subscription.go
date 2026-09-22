@@ -26,6 +26,33 @@ type SubscriptionBalancePayRequest struct {
 	PlanId int `json:"plan_id"`
 }
 
+// normalizeTieredPlanSettings normalizes and validates tiered-limit plan settings.
+// Returns a non-empty user-facing error message when validation fails.
+func normalizeTieredPlanSettings(plan *model.SubscriptionPlan) string {
+	if !plan.TieredLimitEnabled {
+		return ""
+	}
+	if plan.SessionWindowSeconds <= 0 {
+		plan.SessionWindowSeconds = 18000
+	}
+	if plan.SessionWindowSeconds > 604800 {
+		return "会话窗口时长不能超过一周"
+	}
+	if plan.SessionLimitAmount < 0 || plan.WeeklyLimitAmount < 0 {
+		return "档位限额不能为负数"
+	}
+	if plan.SessionLimitAmount == 0 && plan.WeeklyLimitAmount == 0 {
+		return "三档限额模式需至少配置会话或周档上限"
+	}
+	if plan.TotalAmount > 0 &&
+		(plan.SessionLimitAmount > plan.TotalAmount || plan.WeeklyLimitAmount > plan.TotalAmount) {
+		return "会话/周档上限不能超过套餐总额度"
+	}
+	// 三档套餐的月度窗口固定按自然月重置
+	plan.QuotaResetPeriod = model.SubscriptionResetMonthly
+	return ""
+}
+
 // ---- User APIs ----
 
 func GetSubscriptionPlans(c *gin.Context) {
@@ -204,6 +231,10 @@ func AdminCreateSubscriptionPlan(c *gin.Context) {
 		common.ApiErrorMsg(c, "自定义重置周期需大于0秒")
 		return
 	}
+	if msg := normalizeTieredPlanSettings(&req.Plan); msg != "" {
+		common.ApiErrorMsg(c, msg)
+		return
+	}
 	err := model.DB.Create(&req.Plan).Error
 	if err != nil {
 		common.ApiError(c, err)
@@ -278,6 +309,10 @@ func AdminUpdateSubscriptionPlan(c *gin.Context) {
 		common.ApiErrorMsg(c, "自定义重置周期需大于0秒")
 		return
 	}
+	if msg := normalizeTieredPlanSettings(&req.Plan); msg != "" {
+		common.ApiErrorMsg(c, msg)
+		return
+	}
 
 	err := model.DB.Transaction(func(tx *gorm.DB) error {
 		// update plan (allow zero values updates with map)
@@ -300,6 +335,10 @@ func AdminUpdateSubscriptionPlan(c *gin.Context) {
 			"downgrade_group":            req.Plan.DowngradeGroup,
 			"quota_reset_period":         req.Plan.QuotaResetPeriod,
 			"quota_reset_custom_seconds": req.Plan.QuotaResetCustomSeconds,
+			"tiered_limit_enabled":       req.Plan.TieredLimitEnabled,
+			"session_limit_amount":       req.Plan.SessionLimitAmount,
+			"session_window_seconds":     req.Plan.SessionWindowSeconds,
+			"weekly_limit_amount":        req.Plan.WeeklyLimitAmount,
 			"updated_at":                 common.GetTimestamp(),
 		}
 		if req.Plan.AllowBalancePay != nil {

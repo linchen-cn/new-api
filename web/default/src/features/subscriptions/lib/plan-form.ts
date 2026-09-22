@@ -22,33 +22,75 @@ import { parseQuotaFromDollars, quotaUnitsToDollars } from '@/lib/format'
 import type { SubscriptionPlan, PlanPayload } from '../types'
 
 export function getPlanFormSchema(t: TFunction) {
-  return z.object({
-    title: z.string().min(1, t('Please enter plan title')),
-    subtitle: z.string().optional(),
-    price_amount: z.coerce.number().min(0, t('Please enter amount')),
-    duration_unit: z.enum(['year', 'month', 'day', 'hour', 'custom']),
-    duration_value: z.coerce.number().min(1),
-    custom_seconds: z.coerce.number().min(0).optional(),
-    quota_reset_period: z.enum([
-      'never',
-      'daily',
-      'weekly',
-      'monthly',
-      'custom',
-    ]),
-    quota_reset_custom_seconds: z.coerce.number().min(0).optional(),
-    enabled: z.boolean(),
-    sort_order: z.coerce.number(),
-    allow_balance_pay: z.boolean(),
-    allow_wallet_overflow: z.boolean(),
-    max_purchase_per_user: z.coerce.number().min(0),
-    total_amount: z.coerce.number().min(0),
-    upgrade_group: z.string().optional(),
-    downgrade_group: z.string().optional(),
-    stripe_price_id: z.string().optional(),
-    creem_product_id: z.string().optional(),
-    waffo_pancake_product_id: z.string().optional(),
-  })
+  return z
+    .object({
+      title: z.string().min(1, t('Please enter plan title')),
+      subtitle: z.string().optional(),
+      price_amount: z.coerce.number().min(0, t('Please enter amount')),
+      duration_unit: z.enum(['year', 'month', 'day', 'hour', 'custom']),
+      duration_value: z.coerce.number().min(1),
+      custom_seconds: z.coerce.number().min(0).optional(),
+      quota_reset_period: z.enum([
+        'never',
+        'daily',
+        'weekly',
+        'monthly',
+        'custom',
+      ]),
+      quota_reset_custom_seconds: z.coerce.number().min(0).optional(),
+      enabled: z.boolean(),
+      sort_order: z.coerce.number(),
+      allow_balance_pay: z.boolean(),
+      allow_wallet_overflow: z.boolean(),
+      max_purchase_per_user: z.coerce.number().min(0),
+      total_amount: z.coerce.number().min(0),
+      tiered_limit_enabled: z.boolean(),
+      session_limit_amount: z.coerce.number().min(0),
+      session_window_hours: z.coerce
+        .number()
+        .min(1, t('Session window must be at least 1 hour'))
+        .max(168, t('Session window cannot exceed 168 hours')),
+      weekly_limit_amount: z.coerce.number().min(0),
+      upgrade_group: z.string().optional(),
+      downgrade_group: z.string().optional(),
+      stripe_price_id: z.string().optional(),
+      creem_product_id: z.string().optional(),
+      waffo_pancake_product_id: z.string().optional(),
+    })
+    .refine(
+      (v) =>
+        !v.tiered_limit_enabled ||
+        v.session_limit_amount > 0 ||
+        v.weekly_limit_amount > 0,
+      {
+        message: t(
+          'Tiered usage limits require a session or weekly limit greater than 0'
+        ),
+        path: ['tiered_limit_enabled'],
+      }
+    )
+    .refine(
+      (v) =>
+        !v.tiered_limit_enabled ||
+        v.total_amount <= 0 ||
+        v.session_limit_amount <= 0 ||
+        v.total_amount >= v.session_limit_amount,
+      {
+        message: t('Session limit cannot exceed the monthly quota'),
+        path: ['session_limit_amount'],
+      }
+    )
+    .refine(
+      (v) =>
+        !v.tiered_limit_enabled ||
+        v.total_amount <= 0 ||
+        v.weekly_limit_amount <= 0 ||
+        v.total_amount >= v.weekly_limit_amount,
+      {
+        message: t('Weekly limit cannot exceed the monthly quota'),
+        path: ['weekly_limit_amount'],
+      }
+    )
 }
 
 export type PlanFormValues = z.infer<ReturnType<typeof getPlanFormSchema>>
@@ -68,6 +110,10 @@ export const PLAN_FORM_DEFAULTS: PlanFormValues = {
   allow_wallet_overflow: true,
   max_purchase_per_user: 0,
   total_amount: 0,
+  tiered_limit_enabled: false,
+  session_limit_amount: 0,
+  session_window_hours: 5,
+  weekly_limit_amount: 0,
   upgrade_group: '',
   downgrade_group: '',
   stripe_price_id: '',
@@ -91,6 +137,17 @@ export function planToFormValues(plan: SubscriptionPlan): PlanFormValues {
     allow_wallet_overflow: plan.allow_wallet_overflow !== false,
     max_purchase_per_user: Number(plan.max_purchase_per_user || 0),
     total_amount: quotaUnitsToDollars(Number(plan.total_amount || 0)),
+    tiered_limit_enabled: plan.tiered_limit_enabled === true,
+    session_limit_amount: quotaUnitsToDollars(
+      Number(plan.session_limit_amount || 0)
+    ),
+    session_window_hours:
+      Math.round(
+        (Number(plan.session_window_seconds || 18000) / 3600) * 100
+      ) / 100 || 5,
+    weekly_limit_amount: quotaUnitsToDollars(
+      Number(plan.weekly_limit_amount || 0)
+    ),
     upgrade_group: plan.upgrade_group || '',
     downgrade_group: plan.downgrade_group || '',
     stripe_price_id: plan.stripe_price_id || '',
@@ -100,9 +157,10 @@ export function planToFormValues(plan: SubscriptionPlan): PlanFormValues {
 }
 
 export function formValuesToPlanPayload(values: PlanFormValues): PlanPayload {
+  const { session_window_hours: _sessionWindowHours, ...rest } = values
   return {
     plan: {
-      ...values,
+      ...rest,
       price_amount: Number(values.price_amount || 0),
       currency: 'USD',
       duration_value: Number(values.duration_value || 0),
@@ -115,6 +173,15 @@ export function formValuesToPlanPayload(values: PlanFormValues): PlanPayload {
       sort_order: Number(values.sort_order || 0),
       max_purchase_per_user: Number(values.max_purchase_per_user || 0),
       total_amount: parseQuotaFromDollars(Number(values.total_amount || 0)),
+      session_limit_amount: parseQuotaFromDollars(
+        Number(values.session_limit_amount || 0)
+      ),
+      session_window_seconds: Math.round(
+        Number(values.session_window_hours || 5) * 3600
+      ),
+      weekly_limit_amount: parseQuotaFromDollars(
+        Number(values.weekly_limit_amount || 0)
+      ),
       upgrade_group: values.upgrade_group || '',
       downgrade_group: values.downgrade_group || '',
     },

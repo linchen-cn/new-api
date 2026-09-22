@@ -85,6 +85,8 @@ const (
 	// quota error
 	ErrorCodeInsufficientUserQuota      ErrorCode = "insufficient_user_quota"
 	ErrorCodePreConsumeTokenQuotaFailed ErrorCode = "pre_consume_token_quota_failed"
+	// subscription tier limit exhausted (session/weekly window), should respond 429
+	ErrorCodeSubscriptionTierExhausted ErrorCode = "subscription_tier_exhausted"
 )
 
 type NewAPIError struct {

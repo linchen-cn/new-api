@@ -496,6 +496,67 @@ export function SubscriptionPlansCard({
                       {totalAmount > 0 && isActive && (
                         <Progress value={usagePercent} className='mt-2 h-1.5' />
                       )}
+                      {isActive && sub.tiered_usage ? (
+                        <div className='mt-2 space-y-2'>
+                          {(
+                            [
+                              {
+                                label: t('Session usage'),
+                                limit: Number(sub.tiered_usage.session_limit || 0),
+                                used: Number(sub.tiered_usage.session_used || 0),
+                                resetAt: Number(
+                                  sub.tiered_usage.session_reset_at || 0
+                                ),
+                              },
+                              {
+                                label: t('Weekly usage'),
+                                limit: Number(sub.tiered_usage.weekly_limit || 0),
+                                used: Number(sub.tiered_usage.weekly_used || 0),
+                                resetAt: Number(
+                                  sub.tiered_usage.weekly_reset_at || 0
+                                ),
+                              },
+                              {
+                                label: t('Monthly usage'),
+                                limit: Number(sub.tiered_usage.monthly_limit || 0),
+                                used: Number(sub.tiered_usage.monthly_used || 0),
+                                resetAt: Number(
+                                  sub.tiered_usage.monthly_reset_at || 0
+                                ),
+                              },
+                            ] as const
+                          ).map((tier) => {
+                            const tierPercent =
+                              tier.limit > 0
+                                ? Math.min(
+                                    100,
+                                    Math.round((tier.used / tier.limit) * 100)
+                                  )
+                                : 0
+                            return (
+                              <div key={tier.label}>
+                                <div className='flex items-center justify-between'>
+                                  <span>{tier.label}</span>
+                                  <span className='text-muted-foreground'>
+                                    {tier.limit > 0
+                                      ? `${formatQuota(tier.used)}/${formatQuota(tier.limit)}`
+                                      : t('Unlimited')}
+                                    {tier.resetAt > 0
+                                      ? ` · ${t('Resets at')} ${new Date(tier.resetAt * 1000).toLocaleString()}`
+                                      : ''}
+                                  </span>
+                                </div>
+                                {tier.limit > 0 && (
+                                  <Progress
+                                    value={tierPercent}
+                                    className='mt-1 h-1'
+                                  />
+                                )}
+                              </div>
+                            )
+                          })}
+                        </div>
+                      ) : null}
                     </div>
                   )
                 })}
@@ -531,6 +592,17 @@ export function SubscriptionPlansCard({
                 totalAmount > 0
                   ? `${t('Total Quota')}: ${formatQuota(totalAmount)}`
                   : `${t('Total Quota')}: ${t('Unlimited')}`,
+                plan.tiered_limit_enabled
+                  ? `${t('Tiered Usage Limits')}: ${t('Session')} ${
+                      Number(plan.session_limit_amount || 0) > 0
+                        ? formatQuota(Number(plan.session_limit_amount))
+                        : t('Unlimited')
+                    } / ${t('Weekly')} ${
+                      Number(plan.weekly_limit_amount || 0) > 0
+                        ? formatQuota(Number(plan.weekly_limit_amount))
+                        : t('Unlimited')
+                    }`
+                  : null,
                 limit > 0 ? `${t('Purchase Limit')}: ${limit}` : null,
                 plan.upgrade_group
                   ? `${t('Upgrade Group')}: ${plan.upgrade_group}`
