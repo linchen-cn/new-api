@@ -42,3 +42,5 @@ doc/svg_image_0.png
 doc/svg_image_1.png
 doc/svg_image_2.png
 doc/web 1921.svg
+*.csv
+yace/
