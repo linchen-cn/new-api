@@ -17,9 +17,9 @@ import (
 	"github.com/gin-gonic/gin"
 )
 
-// GetPostpaidBillingUsers 返回后付费客户列表(生成账单对话框的数据源)
-func GetPostpaidBillingUsers(c *gin.Context) {
-	users, err := model.GetPostpaidUsers()
+// GetBillingUsers 返回可出账用户列表(预付费/后付费均可,生成账单对话框的数据源)
+func GetBillingUsers(c *gin.Context) {
+	users, err := model.GetStatementUsers()
 	if err != nil {
 		common.ApiError(c, err)
 		return
@@ -120,12 +120,12 @@ func GetBillingStatementDetail(c *gin.Context) {
 }
 
 type UpdateStatementStatusRequest struct {
-	Status string `json:"status"` // paid / voided
+	Status string `json:"status"` // confirmed / voided
 	Settle bool   `json:"settle"`
 	Note   string `json:"note"`
 }
 
-// UpdateBillingStatementStatus 结清(paid)或作废(voided),均为单向终态
+// UpdateBillingStatementStatus 确认(confirmed)或作废(voided),均为单向终态
 func UpdateBillingStatus(c *gin.Context) {
 	id, err := strconv.Atoi(c.Param("id"))
 	if err != nil || id <= 0 {
@@ -139,8 +139,8 @@ func UpdateBillingStatus(c *gin.Context) {
 	}
 	var stmt *model.BillingStatement
 	switch req.Status {
-	case model.StatementStatusPaid:
-		stmt, err = model.MarkStatementPaid(id, req.Settle, strings.TrimSpace(req.Note))
+	case model.StatementStatusConfirmed:
+		stmt, err = model.ConfirmStatement(id, req.Settle, strings.TrimSpace(req.Note))
 	case model.StatementStatusVoided:
 		stmt, err = model.VoidStatement(id)
 	default:
@@ -220,9 +220,9 @@ func ExportBillingStatementCsv(c *gin.Context) {
 	}
 
 	statusText := map[string]string{
-		model.StatementStatusUnpaid: "未结清",
-		model.StatementStatusPaid:   "已结清",
-		model.StatementStatusVoided: "已作废",
+		model.StatementStatusPending:   "待确认",
+		model.StatementStatusConfirmed: "已确认",
+		model.StatementStatusVoided:    "已作废",
 	}
 	formatMoney := func(quota int64) string {
 		return fmt.Sprintf("%.2f", float64(quota)/common.QuotaPerUnit*operation_setting.USDExchangeRate)
@@ -255,10 +255,10 @@ func ExportBillingStatementCsv(c *gin.Context) {
 	if stmt.Remark != "" {
 		rows = append(rows, []string{"备注", stmt.Remark})
 	}
-	if stmt.Status == model.StatementStatusPaid {
+	if stmt.Status == model.StatementStatusConfirmed {
 		rows = append(rows,
-			[]string{"收款时间", formatTime(stmt.PaidAt)},
-			[]string{"收款备注", stmt.PaidNote},
+			[]string{"确认时间", formatTime(stmt.PaidAt)},
+			[]string{"确认备注", stmt.PaidNote},
 			quotaCell("结转欠费", stmt.SettledQuota),
 		)
 	}

@@ -17,12 +17,13 @@ const (
 )
 
 const (
-	StatementStatusUnpaid = "unpaid"
-	StatementStatusPaid   = "paid"
-	StatementStatusVoided = "voided"
+	// 对账单状态: 生成后待确认, 管理员确认后为已确认; voided 为作废终态
+	StatementStatusPending   = "pending"
+	StatementStatusConfirmed = "confirmed"
+	StatementStatusVoided    = "voided"
 )
 
-// BillingStatement 后付费客户对账单,出账时固化聚合快照,后续不依赖 logs 表
+// BillingStatement 客户对账单(预付费/后付费均可出账),出账时固化聚合快照,后续不依赖 logs 表
 type BillingStatement struct {
 	Id               int    `json:"id"`
 	StatementNo      string `json:"statement_no" gorm:"unique;type:varchar(64);index"` // ST-{YYYYMM}-{userId}-{8位随机}
@@ -39,8 +40,8 @@ type BillingStatement struct {
 	PromptTokens     int64  `json:"prompt_tokens"`
 	CompletionTokens int64  `json:"completion_tokens"`
 	ModelBreakdown   string `json:"model_breakdown" gorm:"type:text"` // 按模型分组 JSON 快照
-	Status           string `json:"status" gorm:"type:varchar(16);index;default:'unpaid'"`
-	SettledQuota     int64  `json:"settled_quota"` // 标记已付且勾选结清时 = TotalQuota,否则 0
+	Status           string `json:"status" gorm:"type:varchar(16);index;default:'pending'"`
+	SettledQuota     int64  `json:"settled_quota"` // 标记已确认且勾选结清时 = TotalQuota,否则 0
 	PaidAt           int64  `json:"paid_at"`
 	PaidNote         string `json:"paid_note" gorm:"type:varchar(255)"`
 	Remark           string `json:"remark" gorm:"type:varchar(255)"`
@@ -170,7 +171,7 @@ func CreateBillingStatement(userId int, start, end int64, remark string) (*Billi
 		PromptTokens:     agg.PromptTokens,
 		CompletionTokens: agg.CompletionTokens,
 		ModelBreakdown:   string(modelBreakdown),
-		Status:           StatementStatusUnpaid,
+		Status:           StatementStatusPending,
 		Remark:           remark,
 		CreatedAt:        now,
 		UpdatedAt:        now,
@@ -240,8 +241,8 @@ func AddStatementAdjustment(stmtId int, amount int64, reason string, createdBy s
 		if err := tx.First(stmt, "id = ?", stmtId).Error; err != nil {
 			return err
 		}
-		if stmt.Status != StatementStatusUnpaid {
-			return errors.New("只有未结清账单才能添加调整")
+		if stmt.Status != StatementStatusPending {
+			return errors.New("只有待确认账单才能添加调整")
 		}
 		adjustment := &StatementAdjustment{
 			StatementId: stmtId,
@@ -267,8 +268,8 @@ func DeleteStatementAdjustment(stmtId int, adjId int) (*BillingStatement, error)
 		if err := tx.First(stmt, "id = ?", stmtId).Error; err != nil {
 			return err
 		}
-		if stmt.Status != StatementStatusUnpaid {
-			return errors.New("只有未结清账单才能删除调整")
+		if stmt.Status != StatementStatusPending {
+			return errors.New("只有待确认账单才能删除调整")
 		}
 		result := tx.Where("id = ? AND statement_id = ?", adjId, stmtId).Delete(&StatementAdjustment{})
 		if result.Error != nil {
@@ -285,19 +286,19 @@ func DeleteStatementAdjustment(stmtId int, adjId int) (*BillingStatement, error)
 	return stmt, nil
 }
 
-// MarkStatementPaid 标记账单已付;settle 为 true 时在事务内把应收欠款补回用户余额
-func MarkStatementPaid(stmtId int, settle bool, note string) (*BillingStatement, error) {
+// ConfirmStatement 确认账单;settle 为 true 时在事务内把应收欠款补回用户余额
+func ConfirmStatement(stmtId int, settle bool, note string) (*BillingStatement, error) {
 	stmt := &BillingStatement{}
 	err := DB.Transaction(func(tx *gorm.DB) error {
 		if err := tx.First(stmt, "id = ?", stmtId).Error; err != nil {
 			return err
 		}
-		if stmt.Status != StatementStatusUnpaid {
-			return errors.New("只有未结清账单才能标记已付")
+		if stmt.Status != StatementStatusPending {
+			return errors.New("只有待确认账单才能确认")
 		}
 		now := common.GetTimestamp()
 		updates := map[string]interface{}{
-			"status":        StatementStatusPaid,
+			"status":        StatementStatusConfirmed,
 			"paid_at":       now,
 			"paid_note":     note,
 			"updated_at":    now,
@@ -313,7 +314,7 @@ func MarkStatementPaid(stmtId int, settle bool, note string) (*BillingStatement,
 		if err := tx.Model(&BillingStatement{}).Where("id = ?", stmtId).Updates(updates).Error; err != nil {
 			return err
 		}
-		stmt.Status = StatementStatusPaid
+		stmt.Status = StatementStatusConfirmed
 		stmt.PaidAt = now
 		stmt.PaidNote = note
 		stmt.SettledQuota = 0
@@ -327,11 +328,11 @@ func MarkStatementPaid(stmtId int, settle bool, note string) (*BillingStatement,
 	}
 	if settle && stmt.TotalQuota != 0 {
 		if err := cacheIncrUserQuota(stmt.UserId, stmt.TotalQuota); err != nil {
-			common.SysLog(fmt.Sprintf("failed to sync user quota cache after statement %s paid: %s", stmt.StatementNo, err.Error()))
+			common.SysLog(fmt.Sprintf("failed to sync user quota cache after statement %s confirmed: %s", stmt.StatementNo, err.Error()))
 		}
-		RecordLog(stmt.UserId, LogTypeManage, fmt.Sprintf("账单 %s 已收款, 结转欠费 %s", stmt.StatementNo, logger.FormatQuota(int(stmt.TotalQuota))))
+		RecordLog(stmt.UserId, LogTypeManage, fmt.Sprintf("账单 %s 已确认, 结转欠费 %s", stmt.StatementNo, logger.FormatQuota(int(stmt.TotalQuota))))
 	} else {
-		RecordLog(stmt.UserId, LogTypeManage, fmt.Sprintf("账单 %s 已收款", stmt.StatementNo))
+		RecordLog(stmt.UserId, LogTypeManage, fmt.Sprintf("账单 %s 已确认", stmt.StatementNo))
 	}
 	return stmt, nil
 }
@@ -342,8 +343,8 @@ func VoidStatement(stmtId int) (*BillingStatement, error) {
 		if err := tx.First(stmt, "id = ?", stmtId).Error; err != nil {
 			return err
 		}
-		if stmt.Status != StatementStatusUnpaid {
-			return errors.New("只有未结清账单才能作废")
+		if stmt.Status != StatementStatusPending {
+			return errors.New("只有待确认账单才能作废")
 		}
 		if err := tx.Model(&BillingStatement{}).Where("id = ?", stmtId).Updates(map[string]interface{}{
 			"status":     StatementStatusVoided,
@@ -360,23 +361,23 @@ func VoidStatement(stmtId int) (*BillingStatement, error) {
 	return stmt, nil
 }
 
-// PostpaidUserSummary 后付费客户下拉数据:余额(负=欠费)+ 未结清账单统计
-type PostpaidUserSummary struct {
-	Id          int    `json:"id"`
-	Username    string `json:"username"`
-	DisplayName string `json:"display_name"`
-	Quota       int    `json:"quota"`
-	CreditLimit int64  `json:"credit_limit"`
-	UnpaidCount int64  `json:"unpaid_count"`
-	UnpaidTotal int64  `json:"unpaid_total"`
+// StatementUserSummary 生成对账单的用户下拉数据:预付费/后付费均可出账,附待确认账单统计
+type StatementUserSummary struct {
+	Id            int    `json:"id"`
+	Username      string `json:"username"`
+	DisplayName   string `json:"display_name"`
+	BillingType   string `json:"billing_type"`
+	Quota         int    `json:"quota"`
+	CreditLimit   int64  `json:"credit_limit"`
+	PendingCount  int64  `json:"pending_count"`
+	PendingTotal  int64  `json:"pending_total"`
 }
 
-func GetPostpaidUsers() ([]PostpaidUserSummary, error) {
-	// 空切片初始化,避免无后付费用户时 JSON 序列化为 null
-	users := make([]PostpaidUserSummary, 0)
+func GetStatementUsers() ([]StatementUserSummary, error) {
+	// 空切片初始化,避免无用户时 JSON 序列化为 null
+	users := make([]StatementUserSummary, 0)
 	err := DB.Model(&User{}).
-		Select("id, username, display_name, quota, credit_limit").
-		Where("billing_type = ?", BillingTypePostpaid).
+		Select("id, username, display_name, billing_type, quota, credit_limit").
 		Order("id asc").Scan(&users).Error
 	if err != nil {
 		return nil, err
@@ -392,24 +393,24 @@ func GetPostpaidUsers() ([]PostpaidUserSummary, error) {
 	}
 	err = DB.Model(&BillingStatement{}).
 		Select("user_id, COUNT(*) as cnt, COALESCE(SUM(total_quota), 0) as sum").
-		Where("status = ?", StatementStatusUnpaid).Group("user_id").Scan(&stats).Error
+		Where("status = ?", StatementStatusPending).Group("user_id").Scan(&stats).Error
 	if err != nil {
 		return nil, err
 	}
-	unpaidByUser := make(map[int]struct {
+	pendingByUser := make(map[int]struct {
 		Cnt int64
 		Sum int64
 	}, len(stats))
 	for _, s := range stats {
-		unpaidByUser[s.UserId] = struct {
+		pendingByUser[s.UserId] = struct {
 			Cnt int64
 			Sum int64
 		}{Cnt: s.Cnt, Sum: s.Sum}
 	}
 	for i := range users {
-		if s, ok := unpaidByUser[users[i].Id]; ok {
-			users[i].UnpaidCount = s.Cnt
-			users[i].UnpaidTotal = s.Sum
+		if s, ok := pendingByUser[users[i].Id]; ok {
+			users[i].PendingCount = s.Cnt
+			users[i].PendingTotal = s.Sum
 		}
 	}
 	return users, nil

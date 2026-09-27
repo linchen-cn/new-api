@@ -25,8 +25,8 @@ export function getStatementStatusOptions(
   t: TranslateFn
 ): { label: string; value: StatementStatus }[] {
   return [
-    { label: t('Unpaid'), value: STATEMENT_STATUS.UNPAID },
-    { label: t('Paid'), value: STATEMENT_STATUS.PAID },
+    { label: t('Pending Confirmation'), value: STATEMENT_STATUS.PENDING },
+    { label: t('Confirmed'), value: STATEMENT_STATUS.CONFIRMED },
     { label: t('Voided'), value: STATEMENT_STATUS.VOIDED },
   ]
 }
@@ -36,11 +36,11 @@ export function getStatementStatusBadge(
   t: TranslateFn
 ): { label: string; variant: StatusVariant } {
   switch (status) {
-    case STATEMENT_STATUS.PAID:
-      return { label: t('Paid'), variant: 'success' }
+    case STATEMENT_STATUS.CONFIRMED:
+      return { label: t('Confirmed'), variant: 'success' }
     case STATEMENT_STATUS.VOIDED:
       return { label: t('Voided'), variant: 'neutral' }
     default:
-      return { label: t('Unpaid'), variant: 'warning' }
+      return { label: t('Pending Confirmation'), variant: 'warning' }
   }
 }

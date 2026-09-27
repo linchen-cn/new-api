@@ -20,20 +20,20 @@ import { api } from '@/lib/api'
 import type {
   ApiResponse,
   BillingStatement,
-  PostpaidUser,
   StatementDetailData,
   StatementPageData,
   StatementPreview,
+  StatementUser,
 } from './types'
 
 // ============================================================================
-// Postpaid user picker
+// Statement user picker
 // ============================================================================
 
-export async function getPostpaidBillingUsers(): Promise<
-  ApiResponse<PostpaidUser[]>
+export async function getBillingUsers(): Promise<
+  ApiResponse<StatementUser[]>
 > {
-  const res = await api.get('/api/billing/postpaid-users')
+  const res = await api.get('/api/billing/users')
   return res.data
 }
 
@@ -106,7 +106,7 @@ export async function getBillingStatementDetail(
 // ============================================================================
 
 export interface UpdateStatementStatusPayload {
-  status: 'paid' | 'voided'
+  status: 'confirmed' | 'voided'
   settle?: boolean
   note?: string
 }

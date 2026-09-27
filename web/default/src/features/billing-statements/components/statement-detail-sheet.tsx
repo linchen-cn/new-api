@@ -109,7 +109,7 @@ export function StatementDetailSheet(props: Props) {
   }, [props.open, loadDetail])
 
   const stmt = detail?.statement ?? props.statement
-  const isUnpaid = stmt?.status === STATEMENT_STATUS.UNPAID
+  const isPending = stmt?.status === STATEMENT_STATUS.PENDING
 
   const handleAddAdjustment = async () => {
     if (!stmt?.id) return
@@ -152,17 +152,17 @@ export function StatementDetailSheet(props: Props) {
     }
   }
 
-  const handleMarkPaid = async () => {
+  const handleConfirmStatement = async () => {
     if (!stmt?.id) return
     setSubmitting(true)
     try {
       const res = await updateBillingStatementStatus(stmt.id, {
-        status: 'paid',
+        status: 'confirmed',
         settle,
         note: note.trim() || undefined,
       })
       if (res.success) {
-        toast.success(t('Marked as paid'))
+        toast.success(t('Statement confirmed'))
         setShowMarkPaid(false)
         await loadDetail()
         props.onSuccess()
@@ -303,7 +303,7 @@ export function StatementDetailSheet(props: Props) {
                   <div className='bg-muted/30 space-y-1 rounded-lg border p-3 text-sm'>
                     <div>
                       <span className='text-muted-foreground'>
-                        {t('Paid At')}:{' '}
+                        {t('Confirmed At')}:{' '}
                       </span>
                       {formatTimestamp(stmt.paid_at)}
                     </div>
@@ -379,7 +379,7 @@ export function StatementDetailSheet(props: Props) {
                   <div className='text-sm font-semibold'>
                     {t('Adjustments')}
                   </div>
-                  {isUnpaid ? (
+                  {isPending ? (
                     <div className='flex flex-wrap items-center gap-2'>
                       <Input
                         type='number'
@@ -449,7 +449,7 @@ export function StatementDetailSheet(props: Props) {
                         className: 'text-right',
                         cellClassName: 'text-right',
                         cell: (row) =>
-                          isUnpaid ? (
+                          isPending ? (
                             <Button
                               variant='ghost'
                               size='icon-sm'
@@ -465,11 +465,11 @@ export function StatementDetailSheet(props: Props) {
                 </div>
 
                 {/* Bottom actions */}
-                {isUnpaid ? (
+                {isPending ? (
                   <div className='flex flex-wrap gap-2 border-t pt-4'>
                     <Button onClick={() => setShowMarkPaid(true)}>
                       <CheckCircle2 className='h-4 w-4' />
-                      {t('Mark as Paid')}
+                      {t('Confirm Statement')}
                     </Button>
                     <Button variant='destructive' onClick={() => setShowVoid(true)}>
                       <Ban className='h-4 w-4' />
@@ -486,13 +486,13 @@ export function StatementDetailSheet(props: Props) {
       <ConfirmDialog
         open={showMarkPaid}
         onOpenChange={setShowMarkPaid}
-        title={t('Mark as Paid')}
+        title={t('Confirm Statement')}
         desc={t(
-          'Confirm this statement as paid. This action cannot be undone.'
+          'Confirm this statement. This action cannot be undone.'
         )}
         confirmText={t('Confirm')}
         isLoading={submitting}
-        handleConfirm={handleMarkPaid}
+        handleConfirm={handleConfirmStatement}
       >
         <div className='space-y-3'>
           <div className='flex items-start gap-2'>
@@ -512,8 +512,8 @@ export function StatementDetailSheet(props: Props) {
             </Label>
           </div>
           <Input
-            placeholder={t('Payment note (optional)')}
-            aria-label={t('Payment note (optional)')}
+            placeholder={t('Confirmation note (optional)')}
+            aria-label={t('Confirmation note (optional)')}
             value={note}
             onChange={(e) => setNote(e.target.value)}
           />

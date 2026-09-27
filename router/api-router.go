@@ -318,11 +318,11 @@ func SetApiRouter(router *gin.Engine) {
 		logRoute.GET("/self", middleware.UserAuth(), controller.GetUserLogs)
 		logRoute.GET("/self/search", middleware.UserAuth(), middleware.SearchRateLimit(), controller.SearchUserLogs)
 
-		// 后付费客户对账单管理(全部管理端操作)
+		// 客户对账单管理(全部管理端操作,预付费/后付费用户均可出账)
 		billingRoute := apiRouter.Group("/billing")
 		billingRoute.Use(middleware.AdminAuth())
 		{
-			billingRoute.GET("/postpaid-users", controller.GetPostpaidBillingUsers)
+			billingRoute.GET("/users", controller.GetBillingUsers)
 			statementRoute := billingRoute.Group("/statement")
 			{
 				statementRoute.GET("/preview", controller.PreviewBillingStatement)

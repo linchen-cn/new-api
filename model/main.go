@@ -267,6 +267,8 @@ func migrateDB() error {
 	if err := migrateTokenModelLimitsToText(); err != nil {
 		return err
 	}
+	// Migrate legacy statement status values (unpaid/paid) to pending/confirmed
+	migrateBillingStatementStatus()
 
 	err := DB.AutoMigrate(
 		&Channel{},
@@ -687,6 +689,27 @@ func migrateSubscriptionPlanPriceAmount() {
 			common.SysLog(fmt.Sprintf("Warning: failed to migrate %s.%s to decimal: %v", tableName, columnName, err))
 		} else {
 			common.SysLog(fmt.Sprintf("Successfully migrated %s.%s to decimal(10,6)", tableName, columnName))
+		}
+	}
+}
+
+// migrateBillingStatementStatus migrates legacy statement status values to the
+// new pending/confirmed wording. Pure data UPDATE, works on SQLite/MySQL/PostgreSQL.
+// Safe to run multiple times - only rows still holding legacy values are touched.
+func migrateBillingStatementStatus() {
+	if !DB.Migrator().HasTable(&BillingStatement{}) {
+		return
+	}
+	legacyValues := map[string]string{
+		"unpaid": StatementStatusPending,
+		"paid":   StatementStatusConfirmed,
+	}
+	for oldVal, newVal := range legacyValues {
+		result := DB.Model(&BillingStatement{}).Where("status = ?", oldVal).Update("status", newVal)
+		if result.Error != nil {
+			common.SysLog(fmt.Sprintf("Warning: failed to migrate billing_statements status %q: %v", oldVal, result.Error))
+		} else if result.RowsAffected > 0 {
+			common.SysLog(fmt.Sprintf("Successfully migrated %d billing_statements rows: status %q -> %q", result.RowsAffected, oldVal, newVal))
 		}
 	}
 }

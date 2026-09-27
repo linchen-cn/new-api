@@ -19,8 +19,8 @@ For commercial licensing, please contact support@quantumnous.com
 import { z } from 'zod'
 
 export const STATEMENT_STATUS = {
-  UNPAID: 'unpaid',
-  PAID: 'paid',
+  PENDING: 'pending',
+  CONFIRMED: 'confirmed',
   VOIDED: 'voided',
 } as const
 
@@ -77,19 +77,20 @@ export const statementAdjustmentSchema = z.object({
 export type StatementAdjustment = z.infer<typeof statementAdjustmentSchema>
 
 // ============================================================================
-// Postpaid user picker (mirrors model.PostpaidUserSummary)
+// Statement user picker (mirrors model.StatementUserSummary)
 // ============================================================================
 
-export const postpaidUserSchema = z.object({
+export const statementUserSchema = z.object({
   id: z.number(),
   username: z.string(),
   display_name: z.string(),
+  billing_type: z.string(),
   quota: z.number(),
   credit_limit: z.number(),
-  unpaid_count: z.number(),
-  unpaid_total: z.number(),
+  pending_count: z.number(),
+  pending_total: z.number(),
 })
-export type PostpaidUser = z.infer<typeof postpaidUserSchema>
+export type StatementUser = z.infer<typeof statementUserSchema>
 
 // ============================================================================
 // Statement preview (mirrors controller.PreviewBillingStatement response)

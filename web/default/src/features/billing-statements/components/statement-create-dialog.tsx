@@ -37,10 +37,10 @@ import { StaticDataTable } from '@/components/data-table'
 import { CompactDateTimeRangePicker } from '@/features/usage-logs/components/compact-date-time-range-picker'
 import {
   createBillingStatement,
-  getPostpaidBillingUsers,
+  getBillingUsers,
   previewBillingStatement,
 } from '../api'
-import type { PostpaidUser, StatementPreview } from '../types'
+import type { StatementPreview, StatementUser } from '../types'
 
 interface Props {
   open: boolean
@@ -63,7 +63,7 @@ function toSeconds(date?: Date): number | undefined {
 
 export function StatementCreateDialog(props: Props) {
   const { t } = useTranslation()
-  const [users, setUsers] = useState<PostpaidUser[]>([])
+  const [users, setUsers] = useState<StatementUser[]>([])
   const [loadingUsers, setLoadingUsers] = useState(false)
   const [userId, setUserId] = useState('')
   const [range, setRange] = useState<{ start?: Date; end?: Date }>(() =>
@@ -77,7 +77,7 @@ export function StatementCreateDialog(props: Props) {
   const loadUsers = useCallback(async () => {
     setLoadingUsers(true)
     try {
-      const res = await getPostpaidBillingUsers()
+      const res = await getBillingUsers()
       if (res.success) setUsers(res.data || [])
     } catch {
       /* interceptor already surfaced the error toast */
@@ -169,7 +169,7 @@ export function StatementCreateDialog(props: Props) {
 
   const userItems = users.map((u) => ({
     value: String(u.id),
-    label: `${u.display_name || u.username} · ${t('Balance')}: ${formatQuota(u.quota)}`,
+    label: `${u.display_name || u.username} · ${t(u.billing_type === 'postpaid' ? 'Postpaid' : 'Prepaid')} · ${t('Balance')}: ${formatQuota(u.quota)}`,
   }))
 
   return (
@@ -178,7 +178,7 @@ export function StatementCreateDialog(props: Props) {
       onOpenChange={props.onOpenChange}
       title={t('Generate Statement')}
       description={t(
-        'Aggregate a postpaid user’s usage within a billing period into a statement.'
+        'Aggregate a user’s usage within a billing period into a statement.'
       )}
       bodyClassName='space-y-5'
       footer={
@@ -196,7 +196,7 @@ export function StatementCreateDialog(props: Props) {
       }
     >
       <div className='space-y-2'>
-        <Label>{t('Postpaid User')}</Label>
+        <Label>{t('User')}</Label>
         <Select
           items={userItems}
           value={userId}
@@ -205,7 +205,7 @@ export function StatementCreateDialog(props: Props) {
           <SelectTrigger>
             <SelectValue
               placeholder={
-                loadingUsers ? t('Loading...') : t('Select a postpaid user')
+                loadingUsers ? t('Loading...') : t('Select a user')
               }
             />
           </SelectTrigger>
@@ -217,7 +217,7 @@ export function StatementCreateDialog(props: Props) {
                     {u.display_name || u.username}
                   </span>
                   <span className='text-muted-foreground text-xs'>
-                    #{u.id} · {t('Balance')}: {formatQuota(u.quota)}
+                    #{u.id} · {t(u.billing_type === 'postpaid' ? 'Postpaid' : 'Prepaid')} · {t('Balance')}: {formatQuota(u.quota)}
                   </span>
                 </SelectItem>
               ))}

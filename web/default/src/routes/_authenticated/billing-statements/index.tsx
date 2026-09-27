@@ -26,7 +26,7 @@ const statementsSearchSchema = z.object({
   page: z.number().optional().catch(1),
   pageSize: z.number().optional().catch(undefined),
   status: z
-    .array(z.enum(['unpaid', 'paid', 'voided']))
+    .array(z.enum(['pending', 'confirmed', 'voided']))
     .optional()
     .catch([]),
   start_timestamp: z.number().optional().catch(undefined),
