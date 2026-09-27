@@ -62,6 +62,8 @@ type taskResult struct {
 	Content struct {
 		VideoURL string `json:"video_url"`
 	} `json:"content"`
+	// URL 扁平格式的顶层视频地址:new-api 兼容中转(/v1/videos 响应)的 url 在顶层而非 content.video_url
+	URL        string `json:"url"`
 	Duration   int    `json:"duration"`
 	Resolution string `json:"resolution"`
 	Usage      struct {
@@ -550,6 +552,10 @@ func (a *TaskAdaptor) ParseTaskResult(respBody []byte) (*relaycommon.TaskInfo, e
 		result.Status = model.TaskStatusSuccess
 		result.Progress = "100%"
 		result.Url = inner.Content.VideoURL
+		if result.Url == "" {
+			// new-api 兼容中转的扁平格式:视频地址在顶层 url
+			result.Url = inner.URL
+		}
 		result.CompletionTokens = inner.Usage.CompletionTokens
 		result.TotalTokens = inner.Usage.TotalTokens
 	case "failed":
@@ -651,7 +657,19 @@ func (a *TaskAdaptor) ConvertToOpenAIVideo(originTask *model.Task) ([]byte, erro
 	openAIVideo.TaskID = originTask.TaskID
 	openAIVideo.Status = originTask.Status.ToVideoStatus()
 	openAIVideo.SetProgressStr(originTask.Progress)
-	openAIVideo.SetMetadata("url", inner.Content.VideoURL)
+	videoURL := inner.Content.VideoURL
+	if videoURL == "" {
+		// new-api 兼容中转的扁平格式:视频地址在顶层 url
+		videoURL = inner.URL
+	}
+	openAIVideo.SetMetadata("url", videoURL)
+	if inner.Usage.TotalTokens > 0 || inner.Usage.CompletionTokens > 0 {
+		// 透传 token 用量:下游 new-api 轮询拿到 usage 后才能按 token 重算并差额结算(多退少补)
+		openAIVideo.Usage = &dto.OpenAIVideoUsage{
+			CompletionTokens: inner.Usage.CompletionTokens,
+			TotalTokens:      inner.Usage.TotalTokens,
+		}
+	}
 	openAIVideo.CreatedAt = originTask.CreatedAt
 	openAIVideo.CompletedAt = originTask.UpdatedAt
 	openAIVideo.Model = originTask.Properties.OriginModelName

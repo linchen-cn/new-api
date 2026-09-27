@@ -6,6 +6,8 @@ import (
 	"testing"
 
 	"github.com/QuantumNous/new-api/common"
+	"github.com/QuantumNous/new-api/dto"
+	"github.com/QuantumNous/new-api/model"
 	relaycommon "github.com/QuantumNous/new-api/relay/common"
 	"github.com/gin-gonic/gin"
 	"github.com/stretchr/testify/assert"
@@ -128,4 +130,69 @@ func TestBuildRequestBodyPassesThroughExistingContent(t *testing.T) {
 func TestBuildSeedanceContentEmpty(t *testing.T) {
 	assert.Empty(t, buildSeedanceContent(map[string]interface{}{}))
 	assert.Empty(t, buildSeedanceContent(map[string]interface{}{"prompt": "   "}))
+}
+
+func TestParseTaskResultNativeVolcFormat(t *testing.T) {
+	// 火山方舟原生格式:视频地址在 content.video_url,token 用量在 usage
+	body := `{"id":"cgt-20260924","model":"Doubao-Seedance-2.0","status":"succeeded",` +
+		`"content":{"video_url":"https://tos.example/native.mp4"},` +
+		`"usage":{"completion_tokens":48400,"total_tokens":48400}}`
+
+	result, err := (&TaskAdaptor{}).ParseTaskResult([]byte(body))
+	require.NoError(t, err)
+	assert.Equal(t, model.TaskStatusSuccess, result.Status)
+	assert.Equal(t, "https://tos.example/native.mp4", result.Url)
+	assert.Equal(t, 48400, result.TotalTokens)
+	assert.Equal(t, 48400, result.CompletionTokens)
+}
+
+func TestParseTaskResultFlatNewApiRelayFormat(t *testing.T) {
+	// new-api 兼容中转的扁平格式:视频地址在顶层 url,无 usage
+	// 回归用例:真实事故——适配器取不到顶层 url 导致结算拿不到视频地址,落入代理兜底
+	body := `{"completed_at":1790222413,"created_at":1790222258,"id":"ptask-12473b8e",` +
+		`"model":"doubao-seedance-2.0","progress":100,"status":"completed",` +
+		`"url":"https://tos.example/flat.mp4"}`
+
+	result, err := (&TaskAdaptor{}).ParseTaskResult([]byte(body))
+	require.NoError(t, err)
+	assert.Equal(t, model.TaskStatusSuccess, result.Status)
+	assert.Equal(t, "https://tos.example/flat.mp4", result.Url)
+}
+
+func TestParseTaskResultFlatWithTopLevelUsage(t *testing.T) {
+	// 修复后 new-api 中转的扁平格式:顶层 url + 顶层 usage
+	// 下游必须能同时拿到视频地址和 token 用量,否则轮询终态后无法差额结算
+	body := `{"id":"task_abc","status":"completed","url":"https://tos.example/relay.mp4",` +
+		`"usage":{"completion_tokens":50638,"total_tokens":50638}}`
+
+	result, err := (&TaskAdaptor{}).ParseTaskResult([]byte(body))
+	require.NoError(t, err)
+	assert.Equal(t, model.TaskStatusSuccess, result.Status)
+	assert.Equal(t, "https://tos.example/relay.mp4", result.Url)
+	assert.Equal(t, 50638, result.TotalTokens)
+	assert.Equal(t, 50638, result.CompletionTokens)
+}
+
+func TestConvertToOpenAIVideoPassesUsageAndURL(t *testing.T) {
+	// new-api 作为中转时的输出契约:必须透传 usage,下游才能按 token 重算并差额结算(多退少补)
+	data := `{"id":"cgt-1","status":"succeeded","content":{"video_url":"https://tos.example/native.mp4"},` +
+		`"usage":{"completion_tokens":48400,"total_tokens":48400}}`
+	task := &model.Task{
+		TaskID:     "task_abc",
+		Status:     model.TaskStatusSuccess,
+		Data:       []byte(data),
+		Properties: model.Properties{OriginModelName: "Doubao-Seedance-2.0"},
+	}
+
+	out, err := (&TaskAdaptor{}).ConvertToOpenAIVideo(task)
+	require.NoError(t, err)
+
+	var ov dto.OpenAIVideo
+	require.NoError(t, common.Unmarshal(out, &ov))
+	require.NotNil(t, ov.Usage)
+	assert.Equal(t, 48400, ov.Usage.TotalTokens)
+	assert.Equal(t, 48400, ov.Usage.CompletionTokens)
+	url, ok := ov.Metadata["url"].(string)
+	require.True(t, ok)
+	assert.Equal(t, "https://tos.example/native.mp4", url)
 }

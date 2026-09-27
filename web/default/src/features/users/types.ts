@@ -58,6 +58,8 @@ export const userSchema = z.object({
   last_login_at: z.number().optional(),
   DeletedAt: z.any().nullable().optional(),
   remark: z.string().optional(),
+  billing_type: z.string().optional(), // 'prepaid' | 'postpaid'
+  credit_limit: z.number().optional(), // quota units
 })
 export type User = z.infer<typeof userSchema>
 
@@ -107,6 +109,8 @@ export interface UserFormData {
   quota?: number // Only used when updating user
   group?: string // Only used when updating user
   remark?: string // Only used when updating user
+  billing_type?: string // Only used when updating user
+  credit_limit?: number // Only used when updating user, quota units
 }
 
 export type ManageUserAction =

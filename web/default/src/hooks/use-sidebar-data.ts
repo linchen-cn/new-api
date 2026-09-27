@@ -144,6 +144,11 @@ export function useSidebarData(): SidebarData {
             icon: CreditCard,
           },
           {
+            title: t('Billing Statements'),
+            url: '/billing-statements',
+            icon: FileText,
+          },
+          {
             title: t('System Info'),
             url: '/system-info',
             icon: ServerCog,

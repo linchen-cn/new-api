@@ -67,7 +67,7 @@ export function VideoGenTab() {
   const fileInputRef = useRef<HTMLInputElement>(null)
   const pollingRef = useRef<ReturnType<typeof setInterval> | null>(null)
 
-  const { data: modelsData, isLoading: isLoadingModels } = useQuery({
+  const { data: modelsData } = useQuery({
     queryKey: ['playground-models'],
     queryFn: async () => {
       try {

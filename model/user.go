@@ -51,6 +51,8 @@ type User struct {
 	LinuxDOId        string         `json:"linux_do_id" gorm:"column:linux_do_id;index"`
 	Setting          string         `json:"setting" gorm:"type:text;column:setting"`
 	Remark           string         `json:"remark,omitempty" gorm:"type:varchar(255)" validate:"max=255"`
+	BillingType      string         `json:"billing_type" gorm:"type:varchar(16);default:'prepaid'"` // prepaid / postpaid
+	CreditLimit      int64          `json:"credit_limit" gorm:"type:bigint;default:0"`             // 信用额度(quota),后付费用户允许欠费至此额度
 	StripeCustomer   string         `json:"stripe_customer" gorm:"type:varchar(64);column:stripe_customer;index"`
 	CreatedAt        int64          `json:"created_at" gorm:"autoCreateTime;column:created_at"`
 	LastLoginAt      int64          `json:"last_login_at" gorm:"default:0;column:last_login_at"`
@@ -58,13 +60,15 @@ type User struct {
 
 func (user *User) ToBaseUser() *UserBase {
 	cache := &UserBase{
-		Id:       user.Id,
-		Group:    user.Group,
-		Quota:    user.Quota,
-		Status:   user.Status,
-		Username: user.Username,
-		Setting:  user.Setting,
-		Email:    user.Email,
+		Id:          user.Id,
+		Group:       user.Group,
+		Quota:       user.Quota,
+		Status:      user.Status,
+		Username:    user.Username,
+		Setting:     user.Setting,
+		Email:       user.Email,
+		BillingType: user.BillingType,
+		CreditLimit: user.CreditLimit,
 	}
 	return cache
 }
@@ -226,7 +230,7 @@ func GetAllUsers(pageInfo *common.PageInfo) (users []*User, total int64, err err
 	return users, total, nil
 }
 
-func SearchUsers(keyword string, group string, role *int, status *int, startIdx int, num int) ([]*User, int64, error) {
+func SearchUsers(keyword string, group string, role *int, status *int, billingType string, startIdx int, num int) ([]*User, int64, error) {
 	var users []*User
 	var total int64
 	var err error
@@ -270,6 +274,9 @@ func SearchUsers(keyword string, group string, role *int, status *int, startIdx 
 		} else {
 			query = query.Where("deleted_at IS NULL").Where("status = ?", *status)
 		}
+	}
+	if billingType == BillingTypePrepaid || billingType == BillingTypePostpaid {
+		query = query.Where("billing_type = ?", billingType)
 	}
 
 	// 获取总数
@@ -534,6 +541,13 @@ func (user *User) Edit(updatePassword bool) error {
 		"group":        newUser.Group,
 		"remark":       newUser.Remark,
 	}
+	// 计费类型与信用额度为管理端字段,仅在传入合法值时更新
+	if newUser.BillingType == BillingTypePrepaid || newUser.BillingType == BillingTypePostpaid {
+		updates["billing_type"] = newUser.BillingType
+	}
+	if newUser.CreditLimit >= 0 {
+		updates["credit_limit"] = newUser.CreditLimit
+	}
 	if updatePassword {
 		updates["password"] = newUser.Password
 	}
@@ -541,6 +555,13 @@ func (user *User) Edit(updatePassword bool) error {
 	DB.First(&user, user.Id)
 	if err = DB.Model(user).Updates(updates).Error; err != nil {
 		return err
+	}
+	// Updates(map) 不会回写结构体,同步后供缓存使用
+	if v, ok := updates["billing_type"]; ok {
+		user.BillingType, _ = v.(string)
+	}
+	if v, ok := updates["credit_limit"]; ok {
+		user.CreditLimit, _ = v.(int64)
 	}
 
 	// Update cache
@@ -827,6 +848,19 @@ func GetUserQuota(id int, fromDB bool) (quota int, err error) {
 	}
 
 	return quota, nil
+}
+
+// GetUserQuotaAndCreditFloor 一次缓存查询同时取余额与信用下限。
+// postpaid 用户返回 -CreditLimit(允许透支至此额度);prepaid 用户返回 0,行为与原先不可透支一致。
+func GetUserQuotaAndCreditFloor(id int) (quota int, creditFloor int64, err error) {
+	userCache, err := GetUserCache(id)
+	if err != nil {
+		return 0, 0, err
+	}
+	if userCache.BillingType == BillingTypePostpaid {
+		return userCache.Quota, -userCache.CreditLimit, nil
+	}
+	return userCache.Quota, 0, nil
 }
 
 func GetUserUsedQuota(id int) (quota int, err error) {

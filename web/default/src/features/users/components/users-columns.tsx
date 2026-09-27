@@ -91,6 +91,7 @@ export function useUsersColumns(): ColumnDef<User>[] {
         const username = row.getValue('username') as string
         const displayName = row.original.display_name
         const remark = row.original.remark
+        const isPostpaid = row.original.billing_type === 'postpaid'
 
         return (
           <div className='flex min-w-[160px] flex-col gap-1'>
@@ -98,6 +99,13 @@ export function useUsersColumns(): ColumnDef<User>[] {
               <LongText className='max-w-[140px] font-medium'>
                 {username}
               </LongText>
+              {isPostpaid && (
+                <StatusBadge
+                  label={t('Postpaid')}
+                  variant='info'
+                  copyable={false}
+                />
+              )}
               {remark && (
                 <Tooltip>
                   <TooltipTrigger

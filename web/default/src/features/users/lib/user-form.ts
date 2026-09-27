@@ -17,7 +17,7 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 For commercial licensing, please contact support@quantumnous.com
 */
 import { z } from 'zod'
-import { quotaUnitsToDollars } from '@/lib/format'
+import { parseQuotaFromDollars, quotaUnitsToDollars } from '@/lib/format'
 import { DEFAULT_GROUP } from '../constants'
 import { type UserFormData, type User } from '../types'
 
@@ -30,9 +30,12 @@ export const userFormSchema = z.object({
   display_name: z.string().optional(),
   password: z.string().optional(),
   role: z.number().optional(),
-  quota_dollars: z.number().min(0).optional(),
+  // 允许为负:后付费用户余额可为负;该字段在编辑抽屉中为只读展示,不参与提交
+  quota_dollars: z.number().optional(),
   group: z.string().optional(),
   remark: z.string().optional(),
+  billing_type: z.enum(['prepaid', 'postpaid']),
+  credit_limit_dollars: z.number().min(0).optional(),
 })
 
 export type UserFormValues = z.infer<typeof userFormSchema>
@@ -49,6 +52,8 @@ export const USER_FORM_DEFAULT_VALUES: UserFormValues = {
   quota_dollars: 0,
   group: DEFAULT_GROUP,
   remark: '',
+  billing_type: 'prepaid',
+  credit_limit_dollars: 0,
 }
 
 // ============================================================================
@@ -75,6 +80,8 @@ export function transformFormDataToPayload(
     // For update: quota is adjusted atomically via /api/user/manage, not sent here
     payload.group = data.group
     payload.remark = data.remark || undefined
+    payload.billing_type = data.billing_type
+    payload.credit_limit = parseQuotaFromDollars(data.credit_limit_dollars || 0)
     payload.id = userId
   }
 
@@ -93,5 +100,7 @@ export function transformUserToFormDefaults(user: User): UserFormValues {
     quota_dollars: quotaUnitsToDollars(user.quota),
     group: user.group || DEFAULT_GROUP,
     remark: user.remark || '',
+    billing_type: user.billing_type === 'postpaid' ? 'postpaid' : 'prepaid',
+    credit_limit_dollars: quotaUnitsToDollars(user.credit_limit || 0),
   }
 }

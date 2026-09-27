@@ -126,6 +126,7 @@ export function UsersMutateDrawer({
   const tokensOnly = currencyMeta.kind === 'tokens'
 
   const currentQuotaRaw = form.watch('quota_dollars') || 0
+  const billingType = form.watch('billing_type')
 
   const onSubmit = async (data: UserFormValues) => {
     if (!isUpdate) {
@@ -414,6 +415,87 @@ export function UsersMutateDrawer({
                       </FormItem>
                     )}
                   />
+
+                  <FormField
+                    control={form.control}
+                    name='billing_type'
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel>{t('Billing Type')}</FormLabel>
+                        <Select
+                          items={[
+                            { value: 'prepaid', label: t('Prepaid') },
+                            { value: 'postpaid', label: t('Postpaid') },
+                          ]}
+                          onValueChange={field.onChange}
+                          value={field.value}
+                        >
+                          <FormControl>
+                            <SelectTrigger>
+                              <SelectValue
+                                placeholder={t('Select billing type')}
+                              />
+                            </SelectTrigger>
+                          </FormControl>
+                          <SelectContent alignItemWithTrigger={false}>
+                            <SelectGroup>
+                              <SelectItem value='prepaid'>
+                                {t('Prepaid')}
+                              </SelectItem>
+                              <SelectItem value='postpaid'>
+                                {t('Postpaid')}
+                              </SelectItem>
+                            </SelectGroup>
+                          </SelectContent>
+                        </Select>
+                        <FormDescription>
+                          {t(
+                            'Postpaid users can keep a negative balance within the credit limit'
+                          )}
+                        </FormDescription>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
+
+                  {billingType === 'postpaid' && (
+                    <FormField
+                      control={form.control}
+                      name='credit_limit_dollars'
+                      render={({ field }) => (
+                        <FormItem>
+                          <FormLabel>
+                            {t('Credit Limit ({{currency}})', {
+                              currency: currencyLabel,
+                            })}
+                          </FormLabel>
+                          <FormControl>
+                            <Input
+                              type='number'
+                              min={0}
+                              step='0.01'
+                              value={field.value ?? 0}
+                              onChange={(e) =>
+                                field.onChange(
+                                  Number.isFinite(
+                                    Number.parseFloat(e.target.value)
+                                  )
+                                    ? Number.parseFloat(e.target.value)
+                                    : 0
+                                )
+                              }
+                            />
+                          </FormControl>
+                          <FormDescription>
+                            {formatQuota(
+                              parseQuotaFromDollars(field.value || 0)
+                            )}
+                          </FormDescription>
+                          <FormMessage />
+                        </FormItem>
+                      )}
+                    />
+                  )}
                 </SideDrawerSection>
               )}
 

@@ -317,6 +317,24 @@ func SetApiRouter(router *gin.Engine) {
 		logRoute.GET("/self", middleware.UserAuth(), controller.GetUserLogs)
 		logRoute.GET("/self/search", middleware.UserAuth(), middleware.SearchRateLimit(), controller.SearchUserLogs)
 
+		// 后付费客户对账单管理(全部管理端操作)
+		billingRoute := apiRouter.Group("/billing")
+		billingRoute.Use(middleware.AdminAuth())
+		{
+			billingRoute.GET("/postpaid-users", controller.GetPostpaidBillingUsers)
+			statementRoute := billingRoute.Group("/statement")
+			{
+				statementRoute.GET("/preview", controller.PreviewBillingStatement)
+				statementRoute.POST("/", controller.CreateBillingStatement)
+				statementRoute.GET("/", controller.GetAllBillingStatements)
+				statementRoute.GET("/:id", controller.GetBillingStatementDetail)
+				statementRoute.PUT("/:id/status", controller.UpdateBillingStatus)
+				statementRoute.POST("/:id/adjustment", controller.AddBillingStatementAdjustment)
+				statementRoute.DELETE("/:id/adjustment/:adj_id", controller.DeleteBillingStatementAdjustment)
+				statementRoute.GET("/:id/export", controller.ExportBillingStatementCsv)
+			}
+		}
+
 		systemTaskRoute := apiRouter.Group("/system-task")
 		systemTaskRoute.Use(middleware.RootAuth())
 		{

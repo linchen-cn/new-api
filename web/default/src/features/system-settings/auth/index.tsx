@@ -66,6 +66,12 @@ const defaultAuthSettings: AuthSettings = {
   'passkey.allow_insecure_origin': false,
   'passkey.user_verification': 'preferred',
   'passkey.attachment_preference': '',
+  'aliyun_sms.enabled': false,
+  'aliyun_sms.access_key_id': '',
+  'aliyun_sms.access_secret': '',
+  'aliyun_sms.sign_name': '',
+  'aliyun_sms.template_code': '',
+  'aliyun_sms.endpoint': '',
 }
 
 export function AuthSettings() {

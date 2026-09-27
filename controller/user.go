@@ -1,9 +1,11 @@
 package controller
 
 import (
+	"bytes"
 	"encoding/json"
 	"errors"
 	"fmt"
+	"io"
 	"net/http"
 	"net/url"
 	"strconv"
@@ -310,7 +312,7 @@ func SearchUsers(c *gin.Context) {
 		}
 	}
 	pageInfo := common.GetPageQuery(c)
-	users, total, err := model.SearchUsers(keyword, group, role, status, pageInfo.GetStartIdx(), pageInfo.GetPageSize())
+	users, total, err := model.SearchUsers(keyword, group, role, status, c.Query("billing_type"), pageInfo.GetStartIdx(), pageInfo.GetPageSize())
 	if err != nil {
 		common.ApiError(c, err)
 		return
@@ -612,10 +614,23 @@ func GetUserModels(c *gin.Context) {
 
 func UpdateUser(c *gin.Context) {
 	var updatedUser model.User
-	err := json.NewDecoder(c.Request.Body).Decode(&updatedUser)
-	if err != nil || updatedUser.Id == 0 {
+	body, err := io.ReadAll(c.Request.Body)
+	if err != nil {
 		common.ApiErrorI18n(c, i18n.MsgInvalidParams)
 		return
+	}
+	if err := common.DecodeJson(bytes.NewReader(body), &updatedUser); err != nil || updatedUser.Id == 0 {
+		common.ApiErrorI18n(c, i18n.MsgInvalidParams)
+		return
+	}
+	// credit_limit 未显式传入时置为 -1,避免 Edit 中将原有信用额度误重置为 0
+	var requestData map[string]any
+	if err := common.DecodeJson(bytes.NewReader(body), &requestData); err != nil {
+		common.ApiErrorI18n(c, i18n.MsgInvalidParams)
+		return
+	}
+	if _, ok := requestData["credit_limit"]; !ok {
+		updatedUser.CreditLimit = -1
 	}
 	if updatedUser.Password == "" {
 		updatedUser.Password = "$I_LOVE_U" // make Validator happy :)

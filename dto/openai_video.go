@@ -28,6 +28,14 @@ type OpenAIVideo struct {
 	RemixedFromVideoID string            `json:"remixed_from_video_id,omitempty"`
 	Error              *OpenAIVideoError `json:"error,omitempty"`
 	Metadata           map[string]any    `json:"metadata,omitempty"`
+	// Usage token 用量;new-api 作为中转时透传给下游,下游据此做差额结算(多退少补)
+	Usage *OpenAIVideoUsage `json:"usage,omitempty"`
+}
+
+// OpenAIVideoUsage token 用量,字段与火山方舟等上游的 usage 结构对齐
+type OpenAIVideoUsage struct {
+	CompletionTokens int `json:"completion_tokens"`
+	TotalTokens      int `json:"total_tokens"`
 }
 
 func (m *OpenAIVideo) SetProgressStr(progress string) {
