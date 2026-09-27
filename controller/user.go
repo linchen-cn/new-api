@@ -352,6 +352,44 @@ func GetUser(c *gin.Context) {
 	return
 }
 
+// GetUserByPhone 管理员通过手机号查询用户信息
+func GetUserByPhone(c *gin.Context) {
+	phone := c.Param("phone")
+	if phone == "" {
+		common.ApiErrorMsg(c, "手机号不能为空")
+		return
+	}
+	user, err := model.GetUserByPhone(phone, false)
+	if err != nil {
+		common.ApiError(c, err)
+		return
+	}
+	myRole := c.GetInt("role")
+	if !canManageTargetRole(myRole, user.Role) {
+		common.ApiErrorI18n(c, i18n.MsgUserNoPermissionSameLevel)
+		return
+	}
+	// 查询用户的有效订阅;未订阅任何套餐时返回 null
+	var subscription any
+	subs, err := model.GetAllActiveUserSubscriptions(user.Id)
+	if err != nil {
+		common.ApiError(c, err)
+		return
+	}
+	if len(subs) > 0 {
+		subscription = subs
+	}
+	c.JSON(http.StatusOK, gin.H{
+		"success": true,
+		"message": "",
+		"data": gin.H{
+			"user":         user,
+			"subscription": subscription,
+		},
+	})
+	return
+}
+
 func GenerateAccessToken(c *gin.Context) {
 	id := c.GetInt("id")
 	user, err := model.GetUserById(id, true)

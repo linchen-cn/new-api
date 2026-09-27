@@ -315,6 +315,21 @@ func GetUserById(id int, selectAll bool) (*User, error) {
 	return &user, err
 }
 
+// GetUserByPhone 通过手机号查询用户
+func GetUserByPhone(phone string, selectAll bool) (*User, error) {
+	if phone == "" {
+		return nil, errors.New("手机号为空！")
+	}
+	var user User
+	var err error = nil
+	if selectAll {
+		err = DB.First(&user, "phone = ?", phone).Error
+	} else {
+		err = DB.Omit("password").First(&user, "phone = ?", phone).Error
+	}
+	return &user, err
+}
+
 func GetUserIdByAffCode(affCode string) (int, error) {
 	if affCode == "" {
 		return 0, errors.New("affCode 为空！")
