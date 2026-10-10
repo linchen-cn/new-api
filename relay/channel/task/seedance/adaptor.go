@@ -308,7 +308,7 @@ func isVolcEngine(baseURL string) bool {
 
 // isYSEngine 判断 Base URL 是否指向萤石 EZViz API。
 func isYSEngine(baseURL string) bool {
-	return strings.Contains(baseURL, "ys7.com")
+	return strings.Contains(baseURL, "ezviz.com")
 }
 
 // submitPath 返回提交任务的 API 路径。
@@ -317,7 +317,7 @@ func submitPath(baseURL string) string {
 		return "/api/v3/contents/generations/tasks"
 	}
 	if isYSEngine(baseURL) {
-		return "/v1/videos/generations"
+		return "/api/v3/contents/generations/tasks"
 	}
 	return "/v1/video/generations"
 }
@@ -329,7 +329,7 @@ func fetchPath(baseURL, taskID string) string {
 		return fmt.Sprintf("%s/api/v3/contents/generations/tasks/%s", baseURL, taskID)
 	}
 	if isYSEngine(baseURL) {
-		return fmt.Sprintf("%s/v1/videos/generations/query?taskId=%s", baseURL, taskID)
+		return fmt.Sprintf("%s/api/v3/contents/generations/tasks/%s", baseURL, taskID)
 	}
 	return fmt.Sprintf("%s/v1/video/generations/%s", baseURL, taskID)
 }
