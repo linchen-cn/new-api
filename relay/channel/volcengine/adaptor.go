@@ -38,7 +38,7 @@ func (a *Adaptor) ConvertGeminiRequest(*gin.Context, *relaycommon.RelayInfo, *dt
 }
 
 func (a *Adaptor) ConvertClaudeRequest(c *gin.Context, info *relaycommon.RelayInfo, req *dto.ClaudeRequest) (any, error) {
-	if _, ok := channelconstant.ChannelSpecialBases[info.ChannelBaseUrl]; ok {
+	if isCodingPlanChannel(info) {
 		adaptor := claude.Adaptor{}
 		return adaptor.ConvertClaudeRequest(c, info, req)
 	}
@@ -236,11 +236,39 @@ func detectImageMimeType(filename string) string {
 func (a *Adaptor) Init(info *relaycommon.RelayInfo) {
 }
 
+// isCodingPlanChannel 判断请求是否走火山方舟 Coding Plan 专用端点：
+// 渠道类型为 VolcEngineCodingPlan（独立类型，base URL 已含 /api/coding/v3），
+// 或渠道类型为 VolcEngine 且 base URL 命中 ChannelSpecialBases 中的 coding plan 配置。
+func isCodingPlanChannel(info *relaycommon.RelayInfo) bool {
+	if info.ChannelType == channelconstant.ChannelTypeVolcEngineCodingPlan {
+		return true
+	}
+	_, ok := channelconstant.ChannelSpecialBases[info.ChannelBaseUrl]
+	return ok
+}
+
 func (a *Adaptor) GetRequestURL(info *relaycommon.RelayInfo) (string, error) {
 	baseUrl := info.ChannelBaseUrl
 	if baseUrl == "" {
-		baseUrl = channelconstant.ChannelBaseURLs[channelconstant.ChannelTypeVolcEngine]
+		if info.ChannelType == channelconstant.ChannelTypeVolcEngineCodingPlan {
+			baseUrl = channelconstant.ChannelBaseURLs[channelconstant.ChannelTypeVolcEngineCodingPlan]
+		} else {
+			baseUrl = channelconstant.ChannelBaseURLs[channelconstant.ChannelTypeVolcEngine]
+		}
 	}
+
+	// 独立 coding plan 渠道类型：OpenAI 端点为 {coding/v3}/chat/completions，
+	// Claude 端点为 {coding}/v1/messages（由 coding/v3 去掉版本段推导）
+	if info.ChannelType == channelconstant.ChannelTypeVolcEngineCodingPlan {
+		if info.RelayFormat == types.RelayFormatClaude {
+			return fmt.Sprintf("%s/v1/messages", strings.TrimSuffix(baseUrl, "/v3")), nil
+		}
+		if info.RelayMode == constant.RelayModeChatCompletions {
+			return fmt.Sprintf("%s/chat/completions", baseUrl), nil
+		}
+		return "", fmt.Errorf("unsupported relay mode for volcengine coding plan: %d", info.RelayMode)
+	}
+
 	specialPlan, hasSpecialPlan := channelconstant.ChannelSpecialBases[baseUrl]
 
 	switch info.RelayFormat {
@@ -378,11 +406,9 @@ func (a *Adaptor) DoRequest(c *gin.Context, info *relaycommon.RelayInfo, request
 }
 
 func (a *Adaptor) DoResponse(c *gin.Context, resp *http.Response, info *relaycommon.RelayInfo) (usage any, err *types.NewAPIError) {
-	if info.RelayFormat == types.RelayFormatClaude {
-		if _, ok := channelconstant.ChannelSpecialBases[info.ChannelBaseUrl]; ok {
-			adaptor := claude.Adaptor{}
-			return adaptor.DoResponse(c, resp, info)
-		}
+	if info.RelayFormat == types.RelayFormatClaude && isCodingPlanChannel(info) {
+		adaptor := claude.Adaptor{}
+		return adaptor.DoResponse(c, resp, info)
 	}
 
 	if info.RelayMode == constant.RelayModeAudioSpeech {

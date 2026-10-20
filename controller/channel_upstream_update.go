@@ -301,6 +301,9 @@ func fetchChannelUpstreamModelIDs(channel *model.Channel) ([]string, error) {
 		} else {
 			url = fmt.Sprintf("%s/v1/models", baseURL)
 		}
+	case constant.ChannelTypeVolcEngineCodingPlan:
+		// coding plan 的 base URL 已含版本段(/api/coding/v3),models 端点直接拼 /models
+		url = fmt.Sprintf("%s/models", baseURL)
 	case constant.ChannelTypeMoonshot:
 		if plan, ok := constant.ChannelSpecialBases[baseURL]; ok && plan.OpenAIBaseURL != "" {
 			url = fmt.Sprintf("%s/models", plan.OpenAIBaseURL)

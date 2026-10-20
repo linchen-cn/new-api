@@ -311,12 +311,20 @@ func isYSEngine(baseURL string) bool {
 	return strings.Contains(baseURL, "ezviz.com")
 }
 
+// isFZSEngine 判断 Base URL 是否指向蜂助手的 API。
+func isFZSEngine(baseURL string) bool {
+	return strings.Contains(baseURL, "volces.com")
+}
+
 // submitPath 返回提交任务的 API 路径。
 func submitPath(baseURL string) string {
 	if isVolcEngine(baseURL) {
 		return "/api/v3/contents/generations/tasks"
 	}
 	if isYSEngine(baseURL) {
+		return "/api/v3/contents/generations/tasks"
+	}
+	if isFZSEngine(baseURL) {
 		return "/api/v3/contents/generations/tasks"
 	}
 	return "/v1/video/generations"

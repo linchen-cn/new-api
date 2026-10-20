@@ -632,6 +632,17 @@ export function ChannelMutateDrawer({
       }
     }
 
+    // Type 63 (VolcEngine Coding Plan) - set default base_url
+    if (currentType === 63) {
+      const currentBaseUrlValue = form.getValues('base_url')
+      if (!currentBaseUrlValue || currentBaseUrlValue === '') {
+        form.setValue(
+          'base_url',
+          'https://ark.cn-beijing.volces.com/api/coding/v3'
+        )
+      }
+    }
+
     // Type 18 (Xunfei) - set default other (version)
     if (currentType === 18) {
       const currentOther = form.getValues('other')
@@ -2953,7 +2964,10 @@ export function ChannelMutateDrawer({
                         title={t('Channel Extra Settings')}
                         icon={<Settings className='h-4 w-4' />}
                       />
-                      {(currentType === 1 || currentType === 14) && (
+                      {(currentType === 1 ||
+                        currentType === 14 ||
+                        currentType === 45 ||
+                        currentType === 63) && (
                         <div className='border-border/60 flex flex-col gap-3 border-y py-4'>
                           <SubHeading
                             title={t('Field passthrough controls')}
