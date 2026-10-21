@@ -313,7 +313,7 @@ func isYSEngine(baseURL string) bool {
 
 // isFZSEngine 判断 Base URL 是否指向蜂助手的 API。
 func isFZSEngine(baseURL string) bool {
-	return strings.Contains(baseURL, "volces.com")
+	return strings.Contains(baseURL, "phone580.com")
 }
 
 // submitPath 返回提交任务的 API 路径。
@@ -337,6 +337,9 @@ func fetchPath(baseURL, taskID string) string {
 		return fmt.Sprintf("%s/api/v3/contents/generations/tasks/%s", baseURL, taskID)
 	}
 	if isYSEngine(baseURL) {
+		return fmt.Sprintf("%s/api/v3/contents/generations/tasks/%s", baseURL, taskID)
+	}
+	if isFZSEngine(baseURL) {
 		return fmt.Sprintf("%s/api/v3/contents/generations/tasks/%s", baseURL, taskID)
 	}
 	return fmt.Sprintf("%s/v1/video/generations/%s", baseURL, taskID)
